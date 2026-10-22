@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#060a11" />
+    <meta name="color-scheme" content="dark" />
+    <title>MLBB Draft Companion AI — Draft like you already know the enemy</title>
+    <meta name="description" content="A real-time Mobile Legends draft companion: comfort-weighted picks, rank-aware smart bans, partial-board win projections, a five-second turn solver, and opponent-tailored game plans." />
+    <meta name="author" content="Draft Companion" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="MLBB Draft Companion AI" />
+    <meta property="og:description" content="Your hero pool, the live patch, and the enemy’s tags — read in one board." />
+    <meta property="og:image" content="/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="MLBB Draft Companion AI" />
+    <meta name="twitter:description" content="Draft like you already know the enemy." />
+    <meta name="twitter:image" content="/og.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Cinzel:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .boot { position: fixed; inset: 0; display: grid; place-items: center; background: #060a11; color: #8ea1b7; font-family: system-ui, sans-serif; gap: 14px; }
+      .boot span { width: 34px; height: 34px; border: 2px solid rgba(103, 215, 255, .2); border-top-color: #67d7ff; border-radius: 50%; animation: boot-spin .8s linear infinite; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div id="root"><div class="boot"><span></span>Loading draft room…</div></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

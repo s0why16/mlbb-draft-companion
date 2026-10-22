@@ -1,0 +1,22 @@
+﻿const { chromium } = require('@playwright/test');
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  await page.goto('http://127.0.0.1:5173', { waitUntil: 'networkidle' });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: /Build my hero pool/i }).click();
+  await page.getByRole('button', { name: /Build hero pools/i }).click();
+  await page.getByRole('button', { name: /Auto-fill all lanes/i }).click();
+  await page.getByRole('button', { name: /Review profile/i }).click();
+  await page.getByRole('button', { name: /Save & enter match setup/i }).click();
+  await page.getByRole('button', { name: /Mid Lane/i }).first().click();
+  await page.getByRole('button', { name: /Let’s play rank/i }).click();
+  await page.getByRole('button', { name: /Enter live draft/i }).click();
+  await page.waitForTimeout(300);
+  const start = page.getByRole('button', { name: /The game will start/i }).first();
+  console.log('disabled:', await start.isDisabled());
+  console.log('opacity:', await start.evaluate(el => getComputedStyle(el).opacity));
+  console.log('class:', await start.getAttribute('class'));
+  await browser.close();
+})();

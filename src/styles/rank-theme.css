@@ -1,0 +1,557 @@
+/* ============================================================
+   Rank identity + MLBB-inspired ornamental layer
+   Green Epic · Golden Legend · Violet + gold Mythical Glory
+   ============================================================ */
+
+:root,
+[data-rank='legend'] {
+  --rank-1: #7a5514;
+  --rank-2: #f6cd76;
+  --rank-3: #fff0ba;
+  --rank-accent: #f6cd76;
+  --rank-accent-2: #fff0ba;
+  --rank-glow: rgba(246, 205, 118, 0.24);
+  --rank-deep: #120d05;
+  --crest-light: #fff7d4;
+  --crest-mid: #f6cd76;
+  --crest-deep: #9a6719;
+  --crest-line: rgba(255, 246, 213, 0.82);
+  --crest-core: #fffbe8;
+}
+
+[data-rank='epic'] {
+  --rank-1: #0b5a3e;
+  --rank-2: #2ee6a0;
+  --rank-3: #a8ffdb;
+  --rank-accent: #3ee8a2;
+  --rank-accent-2: #b9ffe2;
+  --rank-glow: rgba(46, 230, 160, 0.24);
+  --rank-deep: #04120d;
+  --crest-light: #d7ffef;
+  --crest-mid: #3ee8a2;
+  --crest-deep: #126545;
+  --crest-line: rgba(220, 255, 242, 0.82);
+  --crest-core: #f1fff9;
+}
+
+[data-rank='mythic'] {
+  --rank-1: #4b1f7a;
+  --rank-2: #c084fc;
+  --rank-3: #f6cd76;
+  --rank-accent: #c084fc;
+  --rank-accent-2: #f6cd76;
+  --rank-glow: rgba(192, 132, 252, 0.28);
+  --rank-deep: #0d0614;
+  --crest-light: #f4e3ff;
+  --crest-mid: #c084fc;
+  --crest-deep: #6d2da8;
+  --crest-line: rgba(255, 240, 190, 0.86);
+  --crest-core: #fff4c8;
+}
+
+/* ---------- Global aurora background ---------- */
+
+.app-bg {
+  background:
+    radial-gradient(ellipse 85% 58% at 50% -12%, color-mix(in srgb, var(--rank-1) 78%, transparent), transparent 64%),
+    radial-gradient(ellipse 48% 42% at 86% 22%, color-mix(in srgb, var(--rank-2) 17%, transparent), transparent 70%),
+    radial-gradient(ellipse 44% 40% at 10% 62%, color-mix(in srgb, var(--rank-3) 12%, transparent), transparent 72%),
+    radial-gradient(ellipse 70% 50% at 50% 110%, color-mix(in srgb, var(--rank-1) 42%, transparent), transparent 68%),
+    var(--bg);
+  transition: background 700ms var(--ease);
+}
+
+.app-bg__glow {
+  width: 540px;
+  height: 540px;
+  filter: blur(150px);
+  transition: background 700ms var(--ease), opacity 700ms var(--ease);
+}
+.app-bg__glow--one {
+  top: 6%;
+  left: -14%;
+  background: var(--rank-2);
+  opacity: 0.15;
+}
+.app-bg__glow--two {
+  bottom: 2%;
+  right: -10%;
+  background: var(--rank-3);
+  opacity: 0.1;
+}
+.app-bg__glow--three {
+  top: 38%;
+  left: 42%;
+  width: 620px;
+  height: 620px;
+  background: var(--rank-2);
+  opacity: 0.07;
+  filter: blur(180px);
+}
+
+.app-bg__grid {
+  opacity: 0.32;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--rank-2) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--rank-2) 7%, transparent) 1px, transparent 1px);
+  transition: background-image 700ms var(--ease);
+}
+
+.app-bg__crest {
+  position: absolute;
+  right: -110px;
+  bottom: -150px;
+  width: min(620px, 48vw);
+  height: auto;
+  color: var(--rank-2);
+  opacity: 0.055;
+  transform: rotate(-8deg);
+  filter: drop-shadow(0 0 60px var(--rank-glow));
+  pointer-events: none;
+  transition: opacity 700ms var(--ease), color 700ms var(--ease);
+}
+
+.app-bg__rank {
+  position: absolute;
+  left: max(20px, calc((100vw - var(--page-max)) / 2 + 40px));
+  bottom: 2%;
+  color: var(--rank-2);
+  font-family: var(--font-crest);
+  font-size: clamp(76px, 11vw, 178px);
+  font-weight: 700;
+  line-height: 0.82;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0.045;
+  pointer-events: none;
+  transition: color 700ms var(--ease);
+}
+
+/* ---------- Top bar / navigation ---------- */
+
+.topbar {
+  border-bottom: 1px solid rgba(246, 205, 118, 0.1);
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--rank-2) 16%, transparent), transparent) bottom / 100% 1px no-repeat,
+    linear-gradient(to bottom, rgba(6, 10, 17, 0.94), rgba(6, 10, 17, 0.62));
+}
+.topbar--inner {
+  border-bottom-color: color-mix(in srgb, var(--rank-2) 20%, var(--line));
+  background:
+    linear-gradient(90deg, transparent, color-mix(in srgb, var(--rank-2) 24%, transparent), transparent) bottom / 100% 1px no-repeat,
+    rgba(6, 10, 17, 0.86);
+}
+
+.flow-step.is-active .flow-step__dot {
+  border-color: var(--rank-accent);
+  background: var(--rank-accent);
+  color: var(--rank-deep);
+  box-shadow: 0 0 18px var(--rank-glow);
+}
+.flow-step.is-active .flow-step__label {
+  color: var(--rank-accent-2);
+}
+.flow-step.is-done .flow-step__dot {
+  border-color: color-mix(in srgb, var(--rank-accent) 45%, transparent);
+  color: var(--rank-accent);
+  background: color-mix(in srgb, var(--rank-accent) 10%, transparent);
+}
+
+.profile-pill {
+  border-color: color-mix(in srgb, var(--rank-2) 26%, var(--line));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--rank-accent) 10%, transparent), rgba(255, 255, 255, 0.025));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.015);
+}
+.profile-pill__crest {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  color: var(--rank-accent);
+  filter: drop-shadow(0 0 8px var(--rank-glow));
+}
+.profile-pill__rank {
+  font-family: var(--font-crest);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.profile-pill__edit:hover {
+  background: color-mix(in srgb, var(--rank-accent) 14%, transparent);
+  color: var(--rank-accent);
+}
+
+/* ---------- Buttons: imperial gold primary ---------- */
+
+.btn--primary {
+  background: linear-gradient(135deg, #fff1b8 0%, #f6cd76 43%, #d99b32 100%);
+  color: #1d1204;
+  box-shadow: 0 10px 30px rgba(246, 205, 118, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.btn--primary:hover:not(:disabled) {
+  box-shadow: 0 14px 38px rgba(246, 205, 118, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+.btn--gold {
+  background: linear-gradient(135deg, #fff6d4 0%, #f9d98c 38%, #e3a93c 100%);
+  color: #1d1204;
+}
+.btn--secondary {
+  background: color-mix(in srgb, var(--rank-accent) 7%, rgba(8, 15, 24, 0.6));
+  border-color: color-mix(in srgb, var(--rank-accent) 34%, transparent);
+  color: var(--rank-accent-2);
+}
+.btn--secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--rank-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--rank-accent) 60%, transparent);
+}
+.filter-chip.is-active,
+.toggle-pill.is-active {
+  border-color: color-mix(in srgb, var(--rank-accent) 55%, transparent);
+  color: var(--rank-accent-2);
+  background: color-mix(in srgb, var(--rank-accent) 12%, transparent);
+}
+.lane-tab.is-active {
+  border-color: color-mix(in srgb, var(--lane-accent) 55%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--lane-accent) 14%, transparent), transparent);
+}
+
+/* ---------- Rank cards ---------- */
+
+.rank-card {
+  isolation: isolate;
+  border-color: color-mix(in srgb, var(--rank-accent) 24%, var(--line));
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--rank-accent) 17%, transparent), transparent 58%),
+    linear-gradient(155deg, color-mix(in srgb, var(--rank-1) 55%, rgba(10, 15, 22, 0.9)), rgba(7, 12, 19, 0.95));
+  transition: transform 0.25s var(--ease), border-color 0.3s, box-shadow 0.3s, background 0.5s;
+}
+.rank-card[data-rank='epic'] {
+  background:
+    radial-gradient(circle at 78% 8%, rgba(46, 230, 160, 0.22), transparent 52%),
+    radial-gradient(circle at 20% 72%, rgba(11, 90, 62, 0.55), transparent 62%),
+    linear-gradient(155deg, rgba(10, 66, 47, 0.78), rgba(5, 15, 12, 0.97));
+}
+.rank-card[data-rank='legend'] {
+  background:
+    radial-gradient(circle at 78% 8%, rgba(255, 233, 163, 0.2), transparent 50%),
+    radial-gradient(circle at 18% 74%, rgba(122, 85, 20, 0.48), transparent 62%),
+    linear-gradient(155deg, rgba(67, 46, 12, 0.8), rgba(15, 11, 5, 0.97));
+}
+.rank-card[data-rank='mythic'] {
+  background:
+    radial-gradient(circle at 82% 7%, rgba(246, 205, 118, 0.18), transparent 45%),
+    radial-gradient(circle at 24% 24%, rgba(192, 132, 252, 0.24), transparent 56%),
+    radial-gradient(circle at 20% 80%, rgba(75, 31, 122, 0.55), transparent 62%),
+    linear-gradient(155deg, rgba(47, 20, 71, 0.86), rgba(12, 6, 18, 0.98));
+}
+.rank-card::after {
+  content: '';
+  position: absolute;
+  inset: 8px;
+  z-index: 1;
+  border: 1px solid color-mix(in srgb, var(--rank-accent-2) 15%, transparent);
+  border-radius: 10px;
+  pointer-events: none;
+}
+.rank-card:hover {
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--rank-accent) 55%, transparent);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.32), 0 0 40px color-mix(in srgb, var(--rank-accent) 10%, transparent);
+}
+.rank-card.is-active {
+  border-color: color-mix(in srgb, var(--rank-accent) 72%, transparent);
+  box-shadow:
+    0 26px 70px rgba(0, 0, 0, 0.32),
+    0 0 46px color-mix(in srgb, var(--rank-accent) 18%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--rank-accent) 24%, transparent);
+}
+.rank-card__crest {
+  position: absolute;
+  right: -54px;
+  top: 56px;
+  z-index: 0;
+  width: 180px;
+  height: 180px;
+  color: var(--rank-accent);
+  opacity: 0.1;
+  transform: rotate(6deg);
+  filter: drop-shadow(0 0 26px var(--rank-glow));
+  transition: opacity 0.3s, transform 0.4s var(--ease);
+  pointer-events: none;
+}
+.rank-card__crest svg {
+  width: 100%;
+  height: 100%;
+}
+.rank-card.is-active .rank-card__crest {
+  opacity: 0.22;
+  transform: rotate(2deg) scale(1.04);
+}
+.rank-card__top,
+.rank-card h2,
+.rank-card p,
+.rank-card__footer {
+  position: relative;
+  z-index: 2;
+}
+.rank-card__badge {
+  width: 46px;
+  height: 46px;
+  border: 1px solid color-mix(in srgb, var(--rank-accent) 48%, transparent);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--rank-accent) 22%, transparent), transparent 72%),
+    rgba(5, 10, 16, 0.55);
+  color: var(--rank-accent);
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--rank-accent) 14%, transparent);
+}
+.rank-card__badge svg {
+  width: 34px;
+  height: 34px;
+}
+.rank-card h2 {
+  color: var(--rank-accent-2);
+  font-family: var(--font-crest);
+  font-size: clamp(38px, 4.2vw, 62px);
+  font-weight: 700;
+  line-height: 0.94;
+  letter-spacing: 0.005em;
+  text-shadow: 0 0 34px var(--rank-glow);
+}
+.rank-card[data-rank='mythic'] h2 {
+  font-size: clamp(28px, 2.8vw, 43px);
+  line-height: 1.02;
+}
+.rank-card__watermark {
+  color: var(--rank-accent);
+  font-family: var(--font-crest);
+  font-size: clamp(76px, 9vw, 124px);
+  font-weight: 700;
+  line-height: 0.83;
+  opacity: 0.055;
+}
+.rank-card[data-rank='mythic'] .rank-card__watermark {
+  font-size: clamp(52px, 6vw, 86px);
+}
+.rank-card.is-active .rank-card__check {
+  border-color: var(--rank-accent);
+  background: var(--rank-accent);
+  color: var(--rank-deep);
+  box-shadow: 0 0 16px var(--rank-glow);
+}
+.rank-card__footer {
+  border-top-color: color-mix(in srgb, var(--rank-accent-2) 14%, transparent);
+}
+.rank-card__total,
+.rank-card__bans {
+  color: color-mix(in srgb, var(--rank-accent-2) 62%, var(--muted));
+}
+
+/* ---------- Ornamental trim on major panels ---------- */
+
+.match-brief,
+.lane-card,
+.pool-panel,
+.hero-grid-panel,
+.ban-team-panel,
+.draft-team,
+.phase-card,
+.strategy-hero,
+.side-card,
+.verdict-card,
+.draft-probability,
+.draft-next,
+.draft-read,
+.picker,
+.modal {
+  border-color: rgba(246, 205, 118, 0.14);
+}
+
+.match-brief,
+.draft-team,
+.phase-card,
+.strategy-hero,
+.side-card {
+  background-image:
+    linear-gradient(90deg, transparent, rgba(246, 205, 118, 0.16), transparent),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 35%);
+  background-repeat: no-repeat;
+  background-size: 100% 1px, 100% 100%;
+}
+
+.match-brief {
+  border-top-color: rgba(246, 205, 118, 0.3);
+}
+.draft-team {
+  border-top-color: rgba(246, 205, 118, 0.24);
+}
+.phase-card {
+  border-top-color: rgba(246, 205, 118, 0.26);
+}
+
+.modal {
+  border-color: rgba(246, 205, 118, 0.24);
+  box-shadow: 0 34px 100px rgba(0, 0, 0, 0.55), 0 0 60px var(--rank-glow);
+}
+
+.suggest-row:hover,
+.pick-row:hover,
+.ban-result:hover {
+  border-color: color-mix(in srgb, var(--rank-accent) 38%, var(--line));
+}
+
+/* ---------- Home accents ---------- */
+
+.home-hero__copy h1 em {
+  color: var(--rank-accent-2);
+  text-shadow: 0 0 50px var(--rank-glow);
+}
+.home-cta {
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--rank-accent) 14%, transparent), transparent 62%),
+    linear-gradient(140deg, rgba(255, 255, 255, 0.025), transparent 55%);
+  border: 1px solid color-mix(in srgb, var(--rank-accent) 18%, var(--line));
+}
+.home-cta h2 em {
+  color: var(--rank-accent-2);
+}
+.home-hero__stats strong {
+  color: var(--rank-accent-2);
+}
+.home-hero__visual .preview-shell {
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42), 0 0 50px color-mix(in srgb, var(--rank-accent) 10%, transparent);
+}
+
+/* ---------- Rank typography in context ---------- */
+
+.setup-rank strong,
+.review-rank h2,
+.strategy-hero__mine h2 {
+  font-family: var(--font-crest);
+  letter-spacing: 0.01em;
+}
+
+/* ---------- Mobile tuning ---------- */
+
+@media (max-width: 900px) {
+  .app-bg__crest {
+    width: 420px;
+    right: -150px;
+    bottom: -100px;
+    opacity: 0.045;
+  }
+  .app-bg__rank {
+    left: 16px;
+    bottom: 8px;
+    font-size: clamp(58px, 18vw, 110px);
+    opacity: 0.04;
+  }
+  .app-bg__glow {
+    width: 380px;
+    height: 380px;
+    filter: blur(120px);
+  }
+  .rank-card h2 {
+    font-size: 56px;
+  }
+  .rank-card[data-rank='mythic'] h2 {
+    font-size: 36px;
+  }
+  .rank-card__crest {
+    width: 150px;
+    height: 150px;
+    right: -34px;
+    top: 78px;
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar {
+    padding: 0 12px;
+    gap: 8px;
+  }
+  .brand {
+    gap: 7px;
+  }
+  .brand__mark {
+    width: 28px;
+    height: 28px;
+  }
+  .brand__name {
+    font-size: 16px;
+  }
+  .brand__sub {
+    display: none;
+  }
+  .patch-pill {
+    display: none;
+  }
+  .profile-pill {
+    height: 30px;
+    padding-left: 6px;
+    gap: 5px;
+  }
+  .profile-pill__crest {
+    width: 22px;
+    height: 22px;
+  }
+  .profile-pill__rank {
+    max-width: 120px;
+    font-size: 9px;
+  }
+  .profile-pill__bans {
+    display: none;
+  }
+  .profile-pill__edit {
+    width: 22px;
+    height: 22px;
+  }
+  .rank-card__crest {
+    width: 132px;
+    height: 132px;
+    opacity: 0.09;
+  }
+  .rank-card h2 {
+    font-size: 52px;
+  }
+  .rank-card[data-rank='mythic'] h2 {
+    font-size: 32px;
+  }
+  .rank-card__watermark {
+    font-size: 84px;
+  }
+  .app-bg__crest {
+    width: 330px;
+    right: -130px;
+  }
+}
+
+@media (max-width: 720px) {
+  .patch__tip {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: 86px;
+    top: auto;
+    width: auto;
+    max-width: none;
+    transform: none;
+    z-index: 500;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-bg,
+  .app-bg__glow,
+  .app-bg__crest,
+  .rank-card,
+  .rank-card__crest {
+    transition: none !important;
+  }
+}

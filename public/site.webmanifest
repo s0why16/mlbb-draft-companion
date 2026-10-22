@@ -1,0 +1,17 @@
+{
+  "name": "MLBB Draft Companion AI",
+  "short_name": "Draft Companion",
+  "description": "Real-time Mobile Legends draft assistant with comfort-weighted picks, smart bans, and opponent-tailored game plans.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060a11",
+  "theme_color": "#060a11",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
