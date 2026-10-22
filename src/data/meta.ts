@@ -100,7 +100,7 @@ export const RANKS: RankMeta[] = [
   },
   {
     id: 'mythic',
-    label: 'Mythic',
+    label: 'Mythical Glory',
     tier: 'Mythic · Glory · Immortal',
     bansPerTeam: 5,
     totalBans: 10,

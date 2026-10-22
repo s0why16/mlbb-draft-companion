@@ -7,6 +7,7 @@ import {
   Crosshair,
   Eraser,
   Layers,
+  Plus,
   Search,
   ShieldCheck,
   SlidersHorizontal,
@@ -22,6 +23,7 @@ import { useToast } from '../components/Toast';
 import { comfortForHero, metaGrade } from '../lib/engine';
 import { searchHeroes } from '../lib/search';
 import { EMPTY_POOLS, createProfile } from '../lib/storage';
+import { CORE_POOL_SIZE, MAX_POOL_SIZE, initialSlotCount, poolCoreCount, poolOptionalCount } from '../lib/pool';
 import { cn } from '../lib/cn';
 import { Button, Chip, Eyebrow, Meter } from '../components/Primitives';
 import { HeroCard } from '../components/HeroCard';
@@ -50,6 +52,13 @@ export function OnboardingScreen() {
   const [step, setStep] = useState(0);
   const [rank, setRank] = useState<Rank>(existing?.rank ?? 'legend');
   const [pools, setPools] = useState<LanePools>(existing ? clonePools(existing.pools) : clonePools(EMPTY_POOLS));
+  const [slotCounts, setSlotCounts] = useState<Record<Lane, number>>(() => {
+    const counts = {} as Record<Lane, number>;
+    for (const item of LANES) {
+      counts[item.id] = initialSlotCount(existing?.pools[item.id]?.length ?? 0);
+    }
+    return counts;
+  });
   const [lane, setLane] = useState<Lane>('mid');
   const [query, setQuery] = useState('');
   const [role, setRole] = useState<Role | null>(null);
@@ -59,7 +68,10 @@ export function OnboardingScreen() {
   const [saving, setSaving] = useState(false);
 
   const total = Object.values(pools).reduce((sum, pool) => sum + pool.length, 0);
+  const coreTotal = Object.values(pools).reduce((sum, pool) => sum + poolCoreCount(pool), 0);
+  const optionalTotal = Object.values(pools).reduce((sum, pool) => sum + poolOptionalCount(pool), 0);
   const lanePool = pools[lane];
+  const laneSlots = slotCounts[lane];
   const laneMeta = LANE_BY_ID[lane];
 
   const results = useMemo(() => {
@@ -75,6 +87,12 @@ export function OnboardingScreen() {
     pools: clonePools(pools),
     updatedAt: new Date().toISOString(),
   });
+
+  const syncSlotCounts = (nextPools: LanePools) => {
+    const counts = {} as Record<Lane, number>;
+    for (const item of LANES) counts[item.id] = initialSlotCount(nextPools[item.id]?.length ?? 0);
+    setSlotCounts(counts);
+  };
 
   const updateStat = (heroId: string, field: 'winRate' | 'matches', raw: string) => {
     const numeric = raw === '' ? undefined : Number(raw);
@@ -95,10 +113,14 @@ export function OnboardingScreen() {
       setPools((current) => ({ ...current, [lane]: current[lane].filter((entry) => entry.heroId !== hero.id) }));
       return;
     }
-    if (lanePool.length >= 5) {
-      toast.push('That lane is full', { tone: 'info', detail: 'Remove a hero before adding another to this lane.' });
+    if (lanePool.length >= MAX_POOL_SIZE) {
+      toast.push('That lane is full', { tone: 'info', detail: `Each lane can hold up to ${MAX_POOL_SIZE} heroes. Remove one before adding another.` });
       return;
     }
+    setSlotCounts((current) => ({
+      ...current,
+      [lane]: Math.min(MAX_POOL_SIZE, Math.max(current[lane], lanePool.length + 1)),
+    }));
     setPools((current) => ({ ...current, [lane]: [...current[lane], { heroId: hero.id }] }));
   };
 
@@ -106,17 +128,27 @@ export function OnboardingScreen() {
     setPools((current) => ({ ...current, [lane]: current[lane].filter((entry) => entry.heroId !== heroId) }));
   };
 
+  const addOptionalSlot = () => {
+    setSlotCounts((current) => ({ ...current, [lane]: Math.min(MAX_POOL_SIZE, current[lane] + 1) }));
+  };
+
   const autoFillLane = () => {
+    const missing = Math.max(0, CORE_POOL_SIZE - lanePool.length);
+    if (!missing) {
+      toast.push('Core slots are full', { tone: 'info', detail: 'Add an optional slot to go beyond three heroes in this lane.' });
+      return;
+    }
     const selected = new Set(lanePool.map((entry) => entry.heroId));
     const meta = HEROES.filter((hero) => hero.lanes.includes(lane) && !selected.has(hero.id))
       .sort((a, b) => b.meta - a.meta)
-      .slice(0, 5 - lanePool.length);
+      .slice(0, missing);
     if (!meta.length) return;
+    setSlotCounts((current) => ({ ...current, [lane]: Math.max(current[lane], CORE_POOL_SIZE) }));
     setPools((current) => ({
       ...current,
       [lane]: [...current[lane], ...meta.map((hero) => ({ heroId: hero.id }))],
     }));
-    toast.push(`${laneMeta.label} filled with meta picks`, { detail: `${meta.length} slot${meta.length === 1 ? '' : 's'} added. Add WR data below if you have it.` });
+    toast.push(`${laneMeta.label} core filled`, { detail: `${meta.length} core slot${meta.length === 1 ? '' : 's'} added. Add optional slots if you want a deeper pool.` });
   };
 
   const autoFillAll = () => {
@@ -124,7 +156,7 @@ export function OnboardingScreen() {
     const next = clonePools(pools);
     for (const item of LANES) {
       const selected = new Set(next[item.id].map((entry) => entry.heroId));
-      const missing = 5 - next[item.id].length;
+      const missing = Math.max(0, CORE_POOL_SIZE - next[item.id].length);
       if (missing <= 0) continue;
       const picks = HEROES.filter((hero) => hero.lanes.includes(item.id) && !selected.has(hero.id))
         .sort((a, b) => b.meta - a.meta)
@@ -133,14 +165,22 @@ export function OnboardingScreen() {
       added += picks.length;
     }
     if (!added) {
-      toast.push('Every lane is already full', { tone: 'info' });
+      toast.push('Every lane has its core picks', { tone: 'info', detail: 'Optional slots are yours to curate beyond the core three.' });
       return;
     }
     setPools(next);
-    toast.push('Meta pools generated', { detail: `${added} slots filled across all five lanes. Review them before saving.` });
+    setSlotCounts((current) => {
+      const nextCounts = { ...current };
+      for (const item of LANES) nextCounts[item.id] = Math.max(nextCounts[item.id], CORE_POOL_SIZE);
+      return nextCounts;
+    });
+    toast.push('Core pools generated', { detail: `${added} core slots filled across all five lanes. Review them before saving.` });
   };
 
-  const clearLane = () => setPools((current) => ({ ...current, [lane]: [] }));
+  const clearLane = () => {
+    setPools((current) => ({ ...current, [lane]: [] }));
+    setSlotCounts((current) => ({ ...current, [lane]: CORE_POOL_SIZE }));
+  };
 
   const save = () => {
     if (total === 0) {
@@ -151,7 +191,7 @@ export function OnboardingScreen() {
     window.setTimeout(() => {
       dispatch({ type: 'SAVE_PROFILE', profile: currentProfile() });
       dispatch({ type: 'SET_SCREEN', screen: 'setup' });
-      toast.push('Profile saved permanently', { detail: `${total} pool slots across all five lanes.` });
+      toast.push('Profile saved permanently', { detail: `${coreTotal} core picks${optionalTotal ? ` + ${optionalTotal} optional` : ''} across all five lanes.` });
       setSaving(false);
     }, 220);
   };
@@ -171,7 +211,7 @@ export function OnboardingScreen() {
           <Eyebrow>Step 1 · Permanent profile</Eyebrow>
           <h1>{existing ? 'Tune your command profile.' : 'Build your command profile.'}</h1>
           <p>
-            Set your ranked context once, then keep five heroes per lane. Win rate and matches are optional, but they make
+            Set your ranked context once, then keep three core heroes per lane, with optional slots up to eight. Win rate and matches are optional, but they make
             the comfort model personal.
           </p>
         </div>
@@ -267,6 +307,7 @@ export function OnboardingScreen() {
                     setRank(restored.rank);
                     dispatch({ type: 'SET_RANK_PREVIEW', rank: restored.rank });
                     setPools(clonePools(restored.pools));
+                    syncSlotCounts(restored.pools);
                     setRestoreOpen(false);
                     setStep(2);
                     toast.push('Backup loaded into the editor', { detail: 'Review your pools, then save to keep them on this device.' });
@@ -301,7 +342,7 @@ export function OnboardingScreen() {
                 >
                   <LaneIcon lane={item.id} size={16} />
                   <span>{item.label}</span>
-                  <em>{count}/5</em>
+                  <em>{count}/{MAX_POOL_SIZE}</em>
                 </button>
               );
             })}
@@ -311,15 +352,18 @@ export function OnboardingScreen() {
             <aside className="pool-panel">
               <div className="pool-panel__head">
                 <div>
-                  <Eyebrow style={{ color: laneMeta.color }}>{laneMeta.label} · top five</Eyebrow>
+                  <Eyebrow style={{ color: laneMeta.color }}>{laneMeta.label} · core + optional</Eyebrow>
                   <h2>{laneMeta.job}</h2>
                 </div>
-                <span className="pool-panel__count">{lanePool.length}/5</span>
+                <span className="pool-panel__count">
+                  {lanePool.length}/{laneSlots}
+                  <em>{laneSlots === CORE_POOL_SIZE ? 'core' : 'slots'}</em>
+                </span>
               </div>
               <p className="pool-panel__desc">{laneMeta.description}</p>
 
               <div className="pool-slots">
-                {Array.from({ length: 5 }, (_, index) => {
+                {Array.from({ length: laneSlots }, (_, index) => {
                   const entry = lanePool[index];
                   const hero = entry ? HEROES.find((item) => item.id === entry.heroId) : null;
                   const comfort = entry ? comfortForHero(entry) : null;
@@ -327,7 +371,9 @@ export function OnboardingScreen() {
                     return (
                       <div key={`empty-${index}`} className="pool-slot pool-slot--empty">
                         <span className="pool-slot__index">{index + 1}</span>
-                        <span className="pool-slot__empty">Select a hero from the grid →</span>
+                        <span className="pool-slot__empty">
+                          {index < CORE_POOL_SIZE ? 'Select a core hero from the grid →' : 'Optional slot · select a hero'}
+                        </span>
                       </div>
                     );
                   }
@@ -338,6 +384,9 @@ export function OnboardingScreen() {
                       <div className="pool-slot__main">
                         <div className="pool-slot__name">
                           <strong>{hero.name}</strong>
+                          <span className={cn('pool-slot__tag', index < CORE_POOL_SIZE && 'is-core')}>
+                            {index < CORE_POOL_SIZE ? 'CORE' : 'OPTIONAL'}
+                          </span>
                           {hero.patch && <PatchBadge hero={hero} compact />}
                         </div>
                         <span>{hero.roles.join(' / ')} · {metaGrade(hero.meta)} tier</span>
@@ -381,14 +430,17 @@ export function OnboardingScreen() {
               </div>
 
               <div className="pool-panel__actions">
-                <Button size="sm" variant="secondary" icon={<WandSparkles size={14} />} onClick={autoFillLane} disabled={lanePool.length >= 5}>
-                  Auto-fill lane
+                <Button size="sm" variant="secondary" icon={<WandSparkles size={14} />} onClick={autoFillLane} disabled={lanePool.length >= CORE_POOL_SIZE}>
+                  Auto-fill core
+                </Button>
+                <Button size="sm" variant="secondary" icon={<Plus size={14} />} onClick={addOptionalSlot} disabled={laneSlots >= MAX_POOL_SIZE}>
+                  Add optional slot
                 </Button>
                 <Button size="sm" variant="ghost" icon={<Eraser size={14} />} onClick={clearLane} disabled={!lanePool.length}>
                   Clear
                 </Button>
               </div>
-              <p className="pool-panel__hint">Optional stats are shrunk toward 50% by sample size, so tiny samples cannot inflate comfort.</p>
+              <p className="pool-panel__hint">Three core picks per lane; add optional slots up to eight. Optional stats are shrunk toward 50% by sample size, so tiny samples cannot inflate comfort.</p>
             </aside>
 
             <section className="hero-grid-panel">
@@ -469,8 +521,8 @@ export function OnboardingScreen() {
               </div>
 
               <div className="pool-mobile-summary">
-                <span>{total}/25 slots filled</span>
-                <Meter value={(total / 25) * 100} tone="cyan" compact />
+                <span>{coreTotal}/{CORE_POOL_SIZE * LANES.length} core filled{optionalTotal ? ` · +${optionalTotal} optional` : ''}</span>
+                <Meter value={(coreTotal / (CORE_POOL_SIZE * LANES.length)) * 100} tone="cyan" compact />
               </div>
             </section>
           </div>
@@ -497,11 +549,11 @@ export function OnboardingScreen() {
                     <div key={item.id} className="review-lane">
                       <div className="review-lane__head">
                         <span style={{ color: item.color }}><LaneIcon lane={item.id} size={15} /> {item.label}</span>
-                        <em>{pool.length}/5</em>
+                        <em>{pool.length}/{MAX_POOL_SIZE}</em>
                         <button type="button" onClick={() => { setLane(item.id); setStep(1); }}>Edit</button>
                       </div>
                       <div className="review-lane__heroes">
-                        {Array.from({ length: 5 }, (_, index) => {
+                        {Array.from({ length: Math.max(CORE_POOL_SIZE, Math.min(MAX_POOL_SIZE, pool.length)) }, (_, index) => {
                           const entry = pool[index];
                           const hero = entry ? HEROES.find((itemHero) => itemHero.id === entry.heroId) : null;
                           if (!hero) return <span key={`empty-${index}`} className="review-slot review-slot--empty">+</span>;
@@ -546,9 +598,12 @@ export function OnboardingScreen() {
               <div className="review-summary">
                 <Eyebrow>Profile check</Eyebrow>
                 <div className="review-summary__big">
-                  <strong>{total}<span>/25</span></strong>
-                  <p>lane pool slots filled</p>
+                  <strong>{coreTotal}<span>/{CORE_POOL_SIZE * LANES.length}</span></strong>
+                  <p>core picks filled</p>
                 </div>
+                {optionalTotal > 0 && (
+                  <p className="review-summary__optional">+{optionalTotal} optional pick{optionalTotal === 1 ? '' : 's'} added</p>
+                )}
                 <div className="review-summary__rows">
                   {LANES.map((item) => (
                     <div key={item.id}>
@@ -568,6 +623,7 @@ export function OnboardingScreen() {
                 onRestored={(restored) => {
                   setRank(restored.rank);
                   setPools(clonePools(restored.pools));
+                  syncSlotCounts(restored.pools);
                   toast.push('Backup restored', { detail: 'Review the loaded pools, then save to keep them locally.' });
                 }}
               />
@@ -590,7 +646,7 @@ export function OnboardingScreen() {
           )}
         </div>
         <div className="onboarding-footer__status">
-          <span>{total}/25 pool slots</span>
+          <span>{coreTotal}/{CORE_POOL_SIZE * LANES.length} core slots{optionalTotal ? ` · +${optionalTotal} optional` : ''}</span>
           <div className="dot-track">
             {LANES.map((item, index) => (
               <i key={item.id} className={pools[item.id].length ? 'is-on' : ''} style={{ background: pools[item.id].length ? item.color : undefined }} />

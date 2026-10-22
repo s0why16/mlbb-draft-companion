@@ -61,14 +61,17 @@ export function HeroCard({
         {showPatch && hero.patch && <PatchBadge hero={hero} compact className="hero-card__patch" />}
         {selected && order != null && <span className="hero-card__order">{order}</span>}
         {variant === 'grid' && <span className="hero-card__add">+</span>}
+        {variant === 'picker' && <span className="hero-card__overlay-name">{hero.name}</span>}
       </div>
-      <div className="hero-card__info">
-        <strong className="hero-card__name">{hero.name}</strong>
-        <span className="hero-card__meta">
-          {hero.lanes.slice(0, 1).map((lane) => LANE_BY_ID[lane].short).join(' · ')}
-          <em>{hero.roles[0]}</em>
-        </span>
-      </div>
+      {variant !== 'picker' && (
+        <div className="hero-card__info">
+          <strong className="hero-card__name">{hero.name}</strong>
+          <span className="hero-card__meta">
+            {hero.lanes.slice(0, 1).map((lane) => LANE_BY_ID[lane].short).join(' · ')}
+            <em>{hero.roles[0]}</em>
+          </span>
+        </div>
+      )}
     </div>
   );
 }

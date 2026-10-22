@@ -44,6 +44,8 @@ export default function App() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.classList.contains('skip-link')) active.blur();
   }, [screen]);
 
   const effective: Screen =

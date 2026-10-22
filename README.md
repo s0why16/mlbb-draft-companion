@@ -2,7 +2,7 @@
 
 **Draft like you already know the enemy.**
 
-A fast, local-first draft assistant for Mobile Legends: Bang Bang. It combines a permanent five-hero-per-lane profile, current patch verdicts, hero matchup data, team-composition scoring, partial-board projections, and opponent-tailored game plans in one responsive screen.
+A fast, local-first draft assistant for Mobile Legends: Bang Bang. It combines a permanent three-core-hero lane profile with optional slots up to eight, current patch verdicts, hero matchup data, team-composition scoring, partial-board projections, and opponent-tailored game plans in one responsive screen.
 
 Built for the 30 seconds between "your turn" and lock-in. No login, no remote model call, and no waiting on an API during the draft.
 
@@ -17,7 +17,7 @@ Built for the 30 seconds between "your turn" and lock-in. No login, no remote mo
 
 ## The seven-step flow
 
-1. **Permanent profile** - select Epic, Legend, or Mythical Glory and build up to five heroes for every lane. Win rate and match count are optional.
+1. **Permanent profile** - select Epic, Legend, or Mythical Glory and build three core heroes per lane, with optional slots up to eight. Win rate and match count are optional.
 2. **Match initialization** - pick the lane you were assigned. Only that lane's pool is considered by the pick solver.
 3. **Ban phase** - rank-aware smart bans (3, 4, or 5 per team) or type-to-ban with nickname support (`Minsi`, `Lance`, `Tig`).
 4. **Live 5v5 board** - log ally and enemy picks as they happen. The projection updates after every lock, including partial boards.

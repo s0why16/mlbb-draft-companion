@@ -117,7 +117,7 @@ export function BanScreen() {
       <div key={`${team}-${index}`} className={cn('ban-slot', hero && 'is-filled', team === 'ally' ? 'ban-slot--blue' : 'ban-slot--red')}>
         {hero ? (
           <>
-            <HeroPortrait hero={hero} size={64} />
+            <HeroPortrait hero={hero} size={56} />
             <button
               type="button"
               className="ban-slot__remove"
@@ -212,7 +212,7 @@ export function BanScreen() {
             {suggestions.map((suggestion, index) => (
               <article key={suggestion.hero.id} className="smart-ban">
                 <span className="smart-ban__rank">{String(index + 1).padStart(2, '0')}</span>
-                <HeroPortrait hero={suggestion.hero} size={50} />
+                <HeroPortrait hero={suggestion.hero} size={42} />
                 <div className="smart-ban__main">
                   <div className="smart-ban__name">
                     <strong>{suggestion.hero.name}</strong>

@@ -19,6 +19,7 @@ import { HEROES, HERO_BY_ID, PATCH_META } from '../data/heroes';
 import { FEATURED_IDS, LANES, PATCH_LABEL, RANK_BY_ID } from '../data/meta';
 import { useGame } from '../state/GameContext';
 import { comfortForHero, metaGrade } from '../lib/engine';
+import { CORE_POOL_SIZE, MAX_POOL_SIZE } from '../lib/pool';
 import { Button, Chip, Eyebrow } from '../components/Primitives';
 import { HeroPortrait } from '../components/HeroPortrait';
 import { LaneIcon } from '../components/LaneIcon';
@@ -35,7 +36,7 @@ const FEATURES = [
   {
     Icon: ShieldBan,
     title: 'Rank-aware smart bans',
-    body: 'Epic punishes low skill floors; Mythic punishes flex value. Bans adapt to 3, 4, or 5 per team.',
+    body: 'Epic punishes low skill floors; Mythical Glory punishes flex value. Bans adapt to 3, 4, or 5 per team.',
     tag: 'Ban solver',
   },
   {
@@ -59,13 +60,13 @@ const FEATURES = [
   {
     Icon: RotateCcw,
     title: 'Replay without reset',
-    body: 'Clearing the board preserves your rank and five-hero lane pools. The next draft starts in one tap.',
+    body: 'Clearing the board preserves your rank and three-core lane pools. The next draft starts in one tap.',
     tag: 'Loop',
   },
 ];
 
 const STEPS = [
-  { n: '01', title: 'Permanent profile', body: 'Pick your rank, then five heroes for each lane with optional win rate and match data.', Icon: Layers },
+  { n: '01', title: 'Permanent profile', body: 'Pick your rank, then three core heroes for each lane, expandable to eight with optional win rate and match data.', Icon: Layers },
   { n: '02', title: 'Match lane', body: 'Choose the lane you were assigned. The engine isolates that pool and ignores every other lane.', Icon: Crosshair },
   { n: '03', title: 'Ban phase', body: 'One-tap smart bans or type a nickname. Rank decides whether you see 3, 4, or 5 bans per team.', Icon: ShieldBan },
   { n: '04', title: 'Live board', body: 'Log ally and enemy picks as they happen. Projected win rate updates after every lock.', Icon: BarChart3 },
@@ -84,6 +85,8 @@ export function HomeScreen() {
     .map((id) => HERO_BY_ID.get(id))
     .filter((hero): hero is NonNullable<typeof hero> => Boolean(hero && hero.patch));
   const totalPool = profile ? Object.values(profile.pools).reduce((sum, pool) => sum + pool.length, 0) : 0;
+  const corePool = profile ? Object.values(profile.pools).reduce((sum, pool) => sum + Math.min(CORE_POOL_SIZE, pool.length), 0) : 0;
+  const optionalPool = totalPool - corePool;
 
   return (
     <div className="home-page">
@@ -139,7 +142,7 @@ export function HomeScreen() {
           <div className="preview-shell">
             <div className="preview-top">
               <span className="preview-top__live"><span className="live-dot" /> LIVE DRAFT</span>
-              <Chip tone="gold">MYTHIC · 5 BANS</Chip>
+              <Chip tone="gold">MYTHICAL GLORY · 5 BANS</Chip>
               <span className="preview-top__timer">00:24</span>
             </div>
             <div className="preview-bans">
@@ -249,7 +252,7 @@ export function HomeScreen() {
           <div className="profile-strip__rank">
             <span className="eyebrow">Active profile</span>
             <strong style={{ color: RANK_BY_ID[profile.rank].accent }}>{RANK_BY_ID[profile.rank].label}</strong>
-            <span>{RANK_BY_ID[profile.rank].bansPerTeam} bans per team · {totalPool}/25 pool slots filled</span>
+            <span>{RANK_BY_ID[profile.rank].bansPerTeam} bans per team · {corePool}/{CORE_POOL_SIZE * LANES.length} core{optionalPool ? ` · +${optionalPool} optional` : ''}</span>
           </div>
           <div className="profile-strip__lanes">
             {LANES.map((lane) => {
@@ -260,7 +263,7 @@ export function HomeScreen() {
                   <span className="profile-lane__icon" style={{ color: lane.color }}><LaneIcon lane={lane.id} size={15} /></span>
                   <div>
                     <strong>{lane.short}</strong>
-                    <span>{pool.length}/5 · {best ? `${Math.round(best.score)} comfort` : 'no stats'}</span>
+                    <span>{pool.length}/{MAX_POOL_SIZE} · {best ? `${Math.round(best.score)} comfort` : 'no stats'}</span>
                   </div>
                 </div>
               );
@@ -374,7 +377,7 @@ export function HomeScreen() {
           <p>
             {profile
               ? 'Your permanent profile is ready. Pick a lane and let the companion handle the clock.'
-              : 'Set your rank and top five heroes per lane. The profile stays on your device and loops into every match.'}
+              : 'Set your rank and three core heroes per lane, expandable to eight. The profile stays on your device and loops into every match.'}
           </p>
           <Button
             size="lg"

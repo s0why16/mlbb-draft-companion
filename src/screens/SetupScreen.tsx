@@ -15,6 +15,7 @@ import { HEROES } from '../data/heroes';
 import { LANES, LANE_BY_ID, PATCH_LABEL, RANK_BY_ID } from '../data/meta';
 import { useGame } from '../state/GameContext';
 import { comfortForHero, heroById, metaGrade } from '../lib/engine';
+import { CORE_POOL_SIZE, MAX_POOL_SIZE } from '../lib/pool';
 import { cn } from '../lib/cn';
 import { Button, Chip, Eyebrow, Meter } from '../components/Primitives';
 import { HeroPortrait } from '../components/HeroPortrait';
@@ -28,7 +29,7 @@ export function SetupScreen() {
   const laneMeta = lane ? LANE_BY_ID[lane] : null;
   const pool = lane ? profile.pools[lane] : [];
   const fallbackPool = lane && pool.length === 0
-    ? HEROES.filter((hero) => hero.lanes.includes(lane)).sort((a, b) => b.meta - a.meta).slice(0, 5)
+    ? HEROES.filter((hero) => hero.lanes.includes(lane)).sort((a, b) => b.meta - a.meta).slice(0, CORE_POOL_SIZE)
     : [];
   const displayHeroes: { hero: Hero; stat?: HeroStat; metaPick?: boolean }[] = lane
     ? pool.length
@@ -52,7 +53,7 @@ export function SetupScreen() {
         <div>
           <Eyebrow>Step 2 · Match initialization</Eyebrow>
           <h1>Which lane did you get?</h1>
-          <p>Pick your assigned role. The draft board will only surface that lane’s top five — everything else stays permanent.</p>
+          <p>Pick your assigned role. The draft board only surfaces that lane's core three plus any optional heroes you saved.</p>
         </div>
         <div className="setup-rank">
           <span className="eyebrow">Ranked context</span>
@@ -95,10 +96,11 @@ export function SetupScreen() {
                 <div className="lane-card__foot">
                   <div className="lane-card__faces">
                     {heroes.slice(0, 5).map((hero) => <HeroPortrait key={hero.id} hero={hero} size={32} />)}
+                    {heroes.length > 5 && <span className="lane-card__more">+{heroes.length - 5}</span>}
                     {!heroes.length && <span className="lane-card__none">No pool yet</span>}
                   </div>
                   <div className="lane-card__numbers">
-                    <strong>{itemPool.length}<span>/5</span></strong>
+                    <strong>{itemPool.length}<span>/{MAX_POOL_SIZE}</span></strong>
                     <em>{itemPool.length === 0 ? 'Meta fallback' : bestComfort ? `${Math.round(bestComfort.score)} comfort` : 'No WR data'}</em>
                   </div>
                 </div>
@@ -125,8 +127,8 @@ export function SetupScreen() {
                   <Meter value={best ? Math.round(best.comfort?.score ?? best.entry.hero.meta) : 50} tone="cyan" compact />
                 </div>
                 <div>
-                  <span>Ready to draft</span>
-                  <strong>{displayHeroes.length}/5</strong>
+                  <span>Pool depth</span>
+                  <strong>{displayHeroes.length}/{MAX_POOL_SIZE}</strong>
                 </div>
               </div>
 
@@ -194,7 +196,7 @@ export function SetupScreen() {
             <div className="match-brief__placeholder">
               <span className="match-brief__placeholder-icon"><Crosshair size={30} /></span>
               <h2>Select your lane</h2>
-              <p>Your top five for that lane become the only candidates the pick solver will consider.</p>
+              <p>Your three core heroes, plus any optional picks, become the candidates the pick solver considers.</p>
               <div className="match-brief__placeholder-pills">
                 {LANES.map((item) => (
                   <button key={item.id} type="button" onClick={() => select(item.id)} style={{ color: item.color, borderColor: `${item.color}44` }}>

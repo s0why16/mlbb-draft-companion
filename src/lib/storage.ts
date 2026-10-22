@@ -1,4 +1,5 @@
 import type { Draft, Lane, LanePools, Profile, Rank } from '../types';
+import { MAX_POOL_SIZE } from './pool';
 
 export const STORAGE_KEY = 'mlbb-draft-companion:v1';
 
@@ -42,7 +43,7 @@ export function isValidProfile(value: unknown): value is Profile {
 export function normalizeProfile(profile: Profile): Profile {
   const pools = structuredClone(EMPTY_POOLS);
   for (const lane of Object.keys(pools) as Lane[]) {
-    pools[lane] = (profile.pools[lane] || []).slice(0, 5).map((entry) => ({
+    pools[lane] = (profile.pools[lane] || []).slice(0, MAX_POOL_SIZE).map((entry) => ({
       heroId: entry.heroId,
       ...(typeof entry.winRate === 'number' ? { winRate: Math.max(0, Math.min(100, entry.winRate)) } : {}),
       ...(typeof entry.matches === 'number' ? { matches: Math.max(0, Math.round(entry.matches)) } : {}),

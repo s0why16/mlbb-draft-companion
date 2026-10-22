@@ -13,7 +13,7 @@ import {
   Timer,
   WandSparkles,
 } from 'lucide-react';
-import type { Evaluation, Lane } from '../types';
+import type { Evaluation } from '../types';
 import { LANE_BY_ID } from '../data/meta';
 import { formatPercent, metaGrade } from '../lib/engine';
 import { cn } from '../lib/cn';
@@ -88,13 +88,18 @@ export function TurnOverlay({
               <Eyebrow>
                 <span className="live-dot" /> AI turn solver
               </Eyebrow>
-              <h2 id="turn-title">It’s my turn.</h2>
+              <h2 id="turn-title">It's my turn.</h2>
               <p>
                 {lane ? `${LANE_BY_ID[lane].label} pool` : 'Lane pool'} · {knownTotal} locked {knownTotal === 1 ? 'pick' : 'picks'} ·{' '}
                 {evaluation.suggestions.length} candidates
               </p>
             </div>
-            <button type="button" className="turn-scan__close" onClick={onClose}>Cancel</button>
+            <div className="turn-scan__head-actions">
+              <Button size="sm" variant="secondary" onClick={reveal} icon={<Sparkles size={14} />}>
+                Reveal now
+              </Button>
+              <button type="button" className="turn-scan__close" onClick={onClose}>Cancel</button>
+            </div>
           </div>
 
           <div className="turn-scan__stage">
@@ -134,10 +139,7 @@ export function TurnOverlay({
           </div>
 
           <div className="turn-scan__foot">
-            <span><Timer size={13} /> Full scan takes five seconds. You can reveal early.</span>
-            <Button variant="secondary" onClick={reveal} icon={<Sparkles size={15} />}>
-              Reveal now
-            </Button>
+            <span><Timer size={13} /> Full scan takes five seconds. Use Reveal now at the top to skip the animation.</span>
           </div>
         </div>
       ) : (
@@ -156,73 +158,97 @@ export function TurnOverlay({
           </div>
 
           {snapshot.length ? (
-            <div className="verdict-grid">
-              {snapshot.map((option, index) => (
-                <article key={option.hero.id} className={cn('verdict-card', index === 0 && 'verdict-card--primary')}>
-                  <div className="verdict-card__top">
-                    <Chip tone={index === 0 ? 'cyan' : 'gold'}>{option.label}</Chip>
-                    <span className="verdict-card__score"><Gauge size={12} /> {Math.round(option.score)} fit</span>
-                  </div>
-                  <div className="verdict-card__hero">
-                    <HeroPortrait hero={option.hero} size={78} priority className="verdict-card__portrait" />
-                    <div>
-                      <h3>{option.hero.name}</h3>
-                      <span>{option.hero.roles.join(' / ')} · {metaGrade(option.hero.meta)} tier</span>
-                      <div className="verdict-card__tags">
-                        {option.hero.lanes.slice(0, 2).map((item) => <span key={item} style={{ color: LANE_BY_ID[item].color }}>{LANE_BY_ID[item].short}</span>)}
-                        {option.hero.patch && <PatchBadge hero={option.hero} compact />}
-                      </div>
-                    </div>
-                    <div className="verdict-card__wr">
-                      <span>Projected</span>
-                      <strong>{formatPercent(option.projectedWinRate)}</strong>
-                      <em className={option.delta >= 0 ? 'is-up' : 'is-down'}>
-                        {option.delta >= 0 ? '+' : ''}{option.delta.toFixed(1)}%
-                      </em>
-                    </div>
-                  </div>
-
-                  <div className="verdict-card__comfort">
-                    <div>
-                      <span>Comfort index</span>
-                      <strong>{option.comfort != null ? Math.round(option.comfort) : '—'}</strong>
-                    </div>
-                    <div>
-                      <span>Meta score</span>
-                      <strong>{option.hero.meta}</strong>
-                    </div>
-                    <div>
-                      <span>Ban risk</span>
-                      <strong>{option.hero.banRate != null ? `${option.hero.banRate.toFixed(0)}%` : '—'}</strong>
-                    </div>
-                  </div>
-
-                  <ul className="verdict-card__reasons">
-                    {option.reasons.slice(0, 3).map((reason) => (
-                      <li key={reason}><Check size={12} /> {reason}</li>
-                    ))}
-                  </ul>
-                  {option.risks.length > 0 && (
-                    <div className="verdict-card__risks">
-                      {option.risks.slice(0, 2).map((risk) => (
-                        <span key={risk}><CircleAlert size={12} /> {risk}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  <Button
-                    full
-                    variant={index === 0 ? 'primary' : 'secondary'}
+            <>
+              <div className="turn-quick-lock" aria-label="Quick lock options">
+                {snapshot.map((option, index) => (
+                  <button
+                    key={option.hero.id}
+                    type="button"
+                    className={cn('turn-quick-lock__btn', index === 0 && 'is-primary')}
                     onClick={() => onLock(option.hero.id)}
                     disabled={disabled}
-                    icon={<Lock size={15} />}
-                    iconRight={<ArrowRight size={14} />}
+                    aria-label={`Lock ${option.hero.name}, projected ${formatPercent(option.projectedWinRate)} win rate`}
                   >
-                    {disabled ? 'All ally slots filled' : 'Lock & transfer'}
-                  </Button>
-                </article>
-              ))}
-            </div>
+                    <HeroPortrait hero={option.hero} size={30} />
+                    <span className="turn-quick-lock__copy">
+                      <em>{index === 0 ? 'Best fit' : 'Alt'}</em>
+                      <strong>{option.hero.name}</strong>
+                    </span>
+                    <span className="turn-quick-lock__score">{formatPercent(option.projectedWinRate)}</span>
+                    <Lock size={13} />
+                  </button>
+                ))}
+              </div>
+
+              <div className="verdict-grid">
+                {snapshot.map((option, index) => (
+                  <article key={option.hero.id} className={cn('verdict-card', index === 0 && 'verdict-card--primary')}>
+                    <div className="verdict-card__top">
+                      <Chip tone={index === 0 ? 'cyan' : 'gold'}>{option.label}</Chip>
+                      <span className="verdict-card__score"><Gauge size={12} /> {Math.round(option.score)} fit</span>
+                    </div>
+                    <div className="verdict-card__hero">
+                      <HeroPortrait hero={option.hero} size={78} priority className="verdict-card__portrait" />
+                      <div>
+                        <h3>{option.hero.name}</h3>
+                        <span>{option.hero.roles.join(' / ')} · {metaGrade(option.hero.meta)} tier</span>
+                        <div className="verdict-card__tags">
+                          {option.hero.lanes.slice(0, 2).map((item) => <span key={item} style={{ color: LANE_BY_ID[item].color }}>{LANE_BY_ID[item].short}</span>)}
+                          {option.hero.patch && <PatchBadge hero={option.hero} compact />}
+                        </div>
+                      </div>
+                      <div className="verdict-card__wr">
+                        <span>Projected</span>
+                        <strong>{formatPercent(option.projectedWinRate)}</strong>
+                        <em className={option.delta >= 0 ? 'is-up' : 'is-down'}>
+                          {option.delta >= 0 ? '+' : ''}{option.delta.toFixed(1)}%
+                        </em>
+                      </div>
+                    </div>
+
+                    <Button
+                      full
+                      variant={index === 0 ? 'primary' : 'secondary'}
+                      onClick={() => onLock(option.hero.id)}
+                      disabled={disabled}
+                      icon={<Lock size={15} />}
+                      iconRight={<ArrowRight size={14} />}
+                      className="verdict-card__lock"
+                    >
+                      {disabled ? 'All ally slots filled' : 'Lock & transfer'}
+                    </Button>
+
+                    <div className="verdict-card__comfort">
+                      <div>
+                        <span>Comfort index</span>
+                        <strong>{option.comfort != null ? Math.round(option.comfort) : '-'}</strong>
+                      </div>
+                      <div>
+                        <span>Meta score</span>
+                        <strong>{option.hero.meta}</strong>
+                      </div>
+                      <div>
+                        <span>Ban risk</span>
+                        <strong>{option.hero.banRate != null ? `${option.hero.banRate.toFixed(0)}%` : '-'}</strong>
+                      </div>
+                    </div>
+
+                    <ul className="verdict-card__reasons">
+                      {option.reasons.slice(0, 3).map((reason) => (
+                        <li key={reason}><Check size={12} /> {reason}</li>
+                      ))}
+                    </ul>
+                    {option.risks.length > 0 && (
+                      <div className="verdict-card__risks">
+                        {option.risks.slice(0, 2).map((risk) => (
+                          <span key={risk}><CircleAlert size={12} /> {risk}</span>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="turn-empty">
               <Crosshair size={32} />

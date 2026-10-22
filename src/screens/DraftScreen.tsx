@@ -89,7 +89,7 @@ function PickRow({
   return (
     <div className={cn('pick-row', `pick-row--${side}`, isMine && 'is-mine')}>
       <span className="pick-row__slot">S{index + 1}</span>
-      <HeroPortrait hero={hero} size={46} className="pick-row__portrait" />
+      <HeroPortrait hero={hero} size={40} className="pick-row__portrait" />
       <div className="pick-row__main">
         <div className="pick-row__name">
           <strong>{hero.name}</strong>
@@ -198,7 +198,7 @@ function SuggestionRow({
       aria-label={`Lock ${rec.hero.name}, projected ${formatPercent(rec.projectedWinRate)} win rate`}
     >
       <span className="suggest-row__rank">{rec.label}</span>
-      <HeroPortrait hero={rec.hero} size={37} />
+      <HeroPortrait hero={rec.hero} size={34} />
       <span className="suggest-row__main">
         <span className="suggest-row__name">
           <strong>{rec.hero.name}</strong>
