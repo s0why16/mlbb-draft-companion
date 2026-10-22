@@ -42,6 +42,9 @@ The rank is also communicated by a crest, a text label, and a background waterma
 ## Features
 
 - **133 heroes** with portraits, lanes, roles, attributes, counter/synergy relationships, and meta scores.
+- **Three core picks per lane**, expandable with optional slots up to eight, with per-hero win-rate and match-count inputs.
+- **Compact hero command palette** with a dense 8-column desktop grid, 4-column mobile grid, alias search, and keyboard navigation.
+- **Sticky quick-lock actions** in the turn solver so both top options can be locked without scrolling.
 - **Patch 2.2.16a** buff/nerf/adjustment badges with hover/tap notes.
 - **Quick character search** with aliases, fuzzy matching, keyboard navigation, and auto-deduplication.
 - **Comfort index** that shrinks small samples toward 50% - a 2-game 100% win rate never beats a 300-game 62%.
