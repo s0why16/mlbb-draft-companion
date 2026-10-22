@@ -1,4 +1,4 @@
-# MLBB Draft Companion AI
+﻿# MLBB Draft Companion AI
 
 **Draft like you already know the enemy.**
 
@@ -165,7 +165,6 @@ scripts/
   build-data.mjs     regenerate src/data/heroes.ts
   download-portraits.mjs
   setup-supabase.mjs
-  inspect.mjs
 docs/
   preview.webp
 ```
@@ -182,4 +181,5 @@ If you are a rights holder and would like an asset removed, please open an issue
 ## License
 
 Code is released under the [MIT License](LICENSE). Game assets are excluded from that license.
+
 

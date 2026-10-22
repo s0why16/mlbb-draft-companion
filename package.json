@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "MLBB Draft Companion AI — real-time Mobile Legends draft assistant.",
+  "description": "MLBB Draft Companion AI - real-time Mobile Legends draft assistant.",
   "engines": {
     "node": ">=20"
   },
