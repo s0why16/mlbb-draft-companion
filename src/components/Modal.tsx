@@ -16,6 +16,11 @@ interface ModalProps {
 export function Modal({ open, onClose, children, className, labelledBy, closeOnBackdrop = true, hideClose = false }: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -35,7 +40,7 @@ export function Modal({ open, onClose, children, className, labelledBy, closeOnB
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
       if (event.key !== 'Tab' || !panelRef.current) return;
       const focusable = Array.from(
@@ -60,7 +65,7 @@ export function Modal({ open, onClose, children, className, labelledBy, closeOnB
       window.clearTimeout(timer);
       previousFocus.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

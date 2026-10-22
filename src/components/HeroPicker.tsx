@@ -63,7 +63,7 @@ export function HeroPicker({ open, onClose, onSelect, title, subtitle, exclude, 
 
   const handleSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (!results.length) return;
-    const columns = window.innerWidth < 720 ? 3 : window.innerWidth < 1100 ? 4 : 5;
+    const columns = window.innerWidth < 720 ? 3 : window.innerWidth < 900 ? 4 : 5;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       setFocused((index) => Math.min(results.length - 1, index + columns));

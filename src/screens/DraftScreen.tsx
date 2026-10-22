@@ -30,6 +30,7 @@ import { HeroPicker } from '../components/HeroPicker';
 import { PatchDot } from '../components/PatchBadge';
 import { WinMeter } from '../components/WinMeter';
 import { TurnOverlay } from '../components/TurnOverlay';
+import { Modal } from '../components/Modal';
 import { useToast } from '../components/Toast';
 
 function banStrip(draft: Draft, team: Team, count: number) {
@@ -315,6 +316,7 @@ export function DraftScreen() {
   const rank = RANK_BY_ID[profile.rank];
   const [picker, setPicker] = useState<{ open: boolean; team: Team; index: number }>({ open: false, team: 'ally', index: 0 });
   const [turnOpen, setTurnOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const evaluation = useMemo(() => evaluateDraft(state.draft, profile), [state.draft, profile]);
   const used = useMemo(() => usedHeroIds(state.draft), [state.draft]);
   const allyPicked = state.draft.picks.ally.filter(Boolean).length;
@@ -504,10 +506,7 @@ export function DraftScreen() {
           </span>
         </div>
         <div className="draft-page__bottom-actions">
-          <Button variant="ghost" size="sm" icon={<RotateCcw size={14} />} onClick={() => {
-            dispatch({ type: 'CLEAR_DRAFT' });
-            toast.push('Draft cleared', { tone: 'info', detail: 'Profile preserved. Choose your next lane.' });
-          }}>
+          <Button variant="ghost" size="sm" icon={<RotateCcw size={14} />} onClick={() => setResetOpen(true)}>
             Reset board
           </Button>
           <Button
@@ -547,6 +546,30 @@ export function DraftScreen() {
         onLock={lockSuggestion}
         disabled={allyFull}
       />
+
+      <Modal open={resetOpen} onClose={() => setResetOpen(false)} className="confirm-modal" labelledBy="reset-title">
+        <div className="confirm-dialog">
+          <Eyebrow>Reset draft</Eyebrow>
+          <h2 id="reset-title">Clear the board?</h2>
+          <p>All bans and picks will be removed and you will return to lane selection. Your rank and permanent hero pools stay untouched.</p>
+          <div className="confirm-dialog__actions">
+            <Button variant="ghost" onClick={() => setResetOpen(false)}>
+              Keep draft
+            </Button>
+            <Button
+              variant="danger"
+              icon={<RotateCcw size={14} />}
+              onClick={() => {
+                setResetOpen(false);
+                dispatch({ type: 'CLEAR_DRAFT' });
+                toast.push('Draft cleared', { tone: 'info', detail: 'Profile preserved. Choose your next lane.' });
+              }}
+            >
+              Clear board
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -1202,3 +1202,60 @@
     gap: 8px;
   }
 }
+
+/* ---------- Confirm dialog ---------- */
+.modal.confirm-modal {
+  width: min(480px, 100%);
+  height: auto;
+  max-height: calc(100dvh - 40px);
+}
+.confirm-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 28px;
+}
+.confirm-dialog h2 {
+  font-size: 38px;
+  line-height: 0.95;
+}
+.confirm-dialog p {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.65;
+  max-width: 380px;
+}
+.confirm-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+@media (max-width: 680px) {
+  .modal.confirm-modal {
+    width: 100%;
+    height: auto;
+    max-height: calc(100dvh - 24px);
+    margin: auto 12px;
+    border-radius: 16px;
+    border: 1px solid var(--line-strong);
+  }
+  .confirm-dialog {
+    padding: 24px 20px;
+  }
+  .confirm-dialog h2 {
+    font-size: 34px;
+  }
+  .confirm-dialog__actions {
+    flex-direction: column-reverse;
+  }
+  .confirm-dialog__actions .btn {
+    width: 100%;
+  }
+}
+@media (max-width: 680px) {
+  .modal.confirm-modal {
+    width: calc(100% - 24px);
+    margin: 0 auto;
+  }
+}
