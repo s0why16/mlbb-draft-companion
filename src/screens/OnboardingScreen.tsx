@@ -19,6 +19,7 @@ import type { Hero, Lane, LanePools, Profile, Rank, Role } from '../types';
 import { HEROES } from '../data/heroes';
 import { LANES, LANE_BY_ID, PATCH_LABEL, RANK_BY_ID, RANKS } from '../data/meta';
 import { useGame } from '../state/GameContext';
+import { useLaneColor } from '../lib/lane';
 import { useToast } from '../components/Toast';
 import { comfortForHero, metaGrade } from '../lib/engine';
 import { searchHeroes } from '../lib/search';
@@ -47,6 +48,7 @@ function clonePools(pools: LanePools): LanePools {
 
 export function OnboardingScreen() {
   const { state, dispatch } = useGame();
+  const laneColor = useLaneColor();
   const toast = useToast();
   const existing = state.profile;
   const [step, setStep] = useState(0);
@@ -244,7 +246,6 @@ export function OnboardingScreen() {
                   type="button"
                   className={cn('rank-card', active && 'is-active')}
                   data-rank={item.id}
-                  style={{ '--rank-accent': item.accent, '--rank-accent-2': item.accent2 } as React.CSSProperties}
                   onClick={() => {
                     setRank(item.id);
                     dispatch({ type: 'SET_RANK_PREVIEW', rank: item.id });
@@ -332,7 +333,7 @@ export function OnboardingScreen() {
                   role="tab"
                   aria-selected={active}
                   className={cn('lane-tab', active && 'is-active')}
-                  style={{ '--lane-accent': item.color } as React.CSSProperties}
+                  style={{ '--lane-accent': laneColor(item) } as React.CSSProperties}
                   onClick={() => {
                     setLane(item.id);
                     setQuery('');
@@ -352,7 +353,7 @@ export function OnboardingScreen() {
             <aside className="pool-panel">
               <div className="pool-panel__head">
                 <div>
-                  <Eyebrow style={{ color: laneMeta.color }}>{laneMeta.label} · core + optional</Eyebrow>
+                  <Eyebrow style={{ color: laneColor(laneMeta) }}>{laneMeta.label} · core + optional</Eyebrow>
                   <h2>{laneMeta.job}</h2>
                 </div>
                 <span className="pool-panel__count">
@@ -536,7 +537,7 @@ export function OnboardingScreen() {
               <div className="review-rank">
                 <div>
                   <Eyebrow>Rank</Eyebrow>
-                  <h2 style={{ color: RANK_BY_ID[rank].accent }}>{RANK_BY_ID[rank].label}</h2>
+                  <h2 style={{ color: 'var(--rank-accent)' }}>{RANK_BY_ID[rank].label}</h2>
                   <p>{RANK_BY_ID[rank].bansPerTeam} bans per team · {RANK_BY_ID[rank].totalBans} total in draft</p>
                 </div>
                 <button type="button" className="text-link" onClick={() => setStep(0)}>Change rank</button>
@@ -548,7 +549,7 @@ export function OnboardingScreen() {
                   return (
                     <div key={item.id} className="review-lane">
                       <div className="review-lane__head">
-                        <span style={{ color: item.color }}><LaneIcon lane={item.id} size={15} /> {item.label}</span>
+                        <span style={{ color: laneColor(item) }}><LaneIcon lane={item.id} size={15} /> {item.label}</span>
                         <em>{pool.length}/{MAX_POOL_SIZE}</em>
                         <button type="button" onClick={() => { setLane(item.id); setStep(1); }}>Edit</button>
                       </div>
@@ -649,7 +650,7 @@ export function OnboardingScreen() {
           <span>{coreTotal}/{CORE_POOL_SIZE * LANES.length} core slots{optionalTotal ? ` · +${optionalTotal} optional` : ''}</span>
           <div className="dot-track">
             {LANES.map((item, index) => (
-              <i key={item.id} className={pools[item.id].length ? 'is-on' : ''} style={{ background: pools[item.id].length ? item.color : undefined }} />
+              <i key={item.id} className={pools[item.id].length ? 'is-on' : ''} style={{ background: pools[item.id].length ? laneColor(item) : undefined }} />
             ))}
           </div>
         </div>

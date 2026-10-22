@@ -5,6 +5,7 @@ import { LANES, LANE_BY_ID } from '../data/meta';
 import { searchHeroes } from '../lib/search';
 import { formatPercent, heroById, metaGrade } from '../lib/engine';
 import { cn } from '../lib/cn';
+import { useLaneColor } from '../lib/lane';
 import { Modal } from './Modal';
 import { Button, Kbd } from './Primitives';
 import { HeroCard } from './HeroCard';
@@ -27,6 +28,7 @@ interface HeroPickerProps {
 }
 
 export function HeroPicker({ open, onClose, onSelect, title, subtitle, exclude, initialLane = null, currentHeroId, onClear }: HeroPickerProps) {
+  const laneColor = useLaneColor();
   const [query, setQuery] = useState('');
   const [lane, setLane] = useState<Lane | null>(initialLane);
   const [roles, setRoles] = useState<Role[]>([]);
@@ -130,7 +132,7 @@ export function HeroPicker({ open, onClose, onSelect, title, subtitle, exclude, 
                 type="button"
                 className={cn('filter-chip', lane === item.id && 'is-active')}
                 onClick={() => setLane(lane === item.id ? null : item.id)}
-                style={lane === item.id ? { borderColor: item.color, color: item.color } : undefined}
+                style={lane === item.id ? { borderColor: laneColor(item), color: laneColor(item) } : undefined}
               >
                 <LaneIcon lane={item.id} size={13} />
                 {item.short}
@@ -154,7 +156,7 @@ export function HeroPicker({ open, onClose, onSelect, title, subtitle, exclude, 
             {results.length} available {results.length === 1 ? 'hero' : 'heroes'}
             {exclude.size > 0 ? ` · ${exclude.size} already locked or banned` : ''}
           </span>
-          {lane && <span style={{ color: LANE_BY_ID[lane].color }}>{LANE_BY_ID[lane].label} filter</span>}
+          {lane && <span style={{ color: laneColor(LANE_BY_ID[lane]) }}>{LANE_BY_ID[lane].label} filter</span>}
         </div>
 
         <div className="picker__grid" ref={gridRef} role="listbox" aria-label="Available heroes">

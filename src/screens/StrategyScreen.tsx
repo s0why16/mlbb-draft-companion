@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { LANE_BY_ID } from '../data/meta';
 import { useGame } from '../state/GameContext';
+import { useLaneColor } from '../lib/lane';
 import { useToast } from '../components/Toast';
 import { buildStrategy, strategyToText } from '../lib/strategy';
 import { comfortForHero, evaluateDraft, formatPercent, metaGrade, statForHero } from '../lib/engine';
@@ -35,6 +36,7 @@ const PHASE_ICONS = [Sunrise, Sun, Moon];
 
 export function StrategyScreen() {
   const { state, dispatch, clearDraft } = useGame();
+  const laneColor = useLaneColor();
   const toast = useToast();
   const profile = state.profile!;
   const evaluation = useMemo(() => evaluateDraft(state.draft, profile), [state.draft, profile]);
@@ -96,7 +98,7 @@ export function StrategyScreen() {
         <div className="strategy-hero__mine">
           <div className="strategy-hero__portrait">
             <HeroPortrait hero={strategy.hero!} size={96} priority />
-            <span className="strategy-hero__lane" style={{ color: LANE_BY_ID[strategy.lane ?? 'mid'].color }}>
+            <span className="strategy-hero__lane" style={{ color: laneColor(LANE_BY_ID[strategy.lane ?? 'mid']) }}>
               {strategy.lane ? LANE_BY_ID[strategy.lane].label : 'Role'}
             </span>
           </div>

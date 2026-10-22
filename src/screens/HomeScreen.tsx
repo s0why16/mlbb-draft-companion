@@ -19,6 +19,7 @@ import { HEROES, HERO_BY_ID, PATCH_META } from '../data/heroes';
 import { FEATURED_IDS, LANES, PATCH_LABEL, RANK_BY_ID } from '../data/meta';
 import { useGame } from '../state/GameContext';
 import { comfortForHero, metaGrade } from '../lib/engine';
+import { useLaneColor } from '../lib/lane';
 import { CORE_POOL_SIZE, MAX_POOL_SIZE } from '../lib/pool';
 import { Button, Chip, Eyebrow } from '../components/Primitives';
 import { HeroPortrait } from '../components/HeroPortrait';
@@ -77,6 +78,7 @@ const STEPS = [
 
 export function HomeScreen() {
   const { state, dispatch } = useGame();
+  const laneColor = useLaneColor();
   const profile = state.profile;
   const featured = FEATURED_IDS.map((id) => HERO_BY_ID.get(id)).filter(Boolean);
   const bluePreview = ['hirara', 'lukas', 'belerick'].map((id) => HERO_BY_ID.get(id)).filter(Boolean);
@@ -251,7 +253,7 @@ export function HomeScreen() {
         <section className="profile-strip">
           <div className="profile-strip__rank">
             <span className="eyebrow">Active profile</span>
-            <strong style={{ color: RANK_BY_ID[profile.rank].accent }}>{RANK_BY_ID[profile.rank].label}</strong>
+            <strong style={{ color: 'var(--rank-accent)' }}>{RANK_BY_ID[profile.rank].label}</strong>
             <span>{RANK_BY_ID[profile.rank].bansPerTeam} bans per team · {corePool}/{CORE_POOL_SIZE * LANES.length} core{optionalPool ? ` · +${optionalPool} optional` : ''}</span>
           </div>
           <div className="profile-strip__lanes">
@@ -260,7 +262,7 @@ export function HomeScreen() {
               const best = pool[0] ? comfortForHero(pool[0]) : null;
               return (
                 <div key={lane.id} className="profile-lane">
-                  <span className="profile-lane__icon" style={{ color: lane.color }}><LaneIcon lane={lane.id} size={15} /></span>
+                  <span className="profile-lane__icon" style={{ color: laneColor(lane) }}><LaneIcon lane={lane.id} size={15} /></span>
                   <div>
                     <strong>{lane.short}</strong>
                     <span>{pool.length}/{MAX_POOL_SIZE} · {best ? `${Math.round(best.score)} comfort` : 'no stats'}</span>

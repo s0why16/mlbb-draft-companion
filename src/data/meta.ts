@@ -7,6 +7,7 @@ export interface LaneMeta {
   description: string;
   job: string;
   color: string;
+  colorLight: string;
   glyph: string;
 }
 
@@ -18,6 +19,7 @@ export const LANES: LaneMeta[] = [
     description: 'Win the long lane, absorb pressure, and create side-lane tempo.',
     job: 'Duelist · Frontline · Split push',
     color: '#f0b55a',
+    colorLight: '#98600f',
     glyph: '⚔',
   },
   {
@@ -27,6 +29,7 @@ export const LANES: LaneMeta[] = [
     description: 'Farm safely, hit your item spikes, and become the win condition.',
     job: 'Marksman · Scaling · DPS',
     color: '#f7d774',
+    colorLight: '#8a5a0b',
     glyph: '◎',
   },
   {
@@ -36,6 +39,7 @@ export const LANES: LaneMeta[] = [
     description: 'Clear fast, rotate first, and control the river with your jungler.',
     job: 'Mage · Burst · Poke',
     color: '#b18cff',
+    colorLight: '#6d3bc4',
     glyph: '✦',
   },
   {
@@ -45,6 +49,7 @@ export const LANES: LaneMeta[] = [
     description: 'Set the tempo, secure objectives, and turn lanes into leads.',
     job: 'Assassin · Tempo · Objectives',
     color: '#6ee7b7',
+    colorLight: '#087a58',
     glyph: '❖',
   },
   {
@@ -54,6 +59,7 @@ export const LANES: LaneMeta[] = [
     description: 'Own vision and engage timings. Protect the carry, start the fight.',
     job: 'Tank · Support · Engage',
     color: '#67d7ff',
+    colorLight: '#0b6f88',
     glyph: '◈',
   },
 ];
@@ -71,6 +77,7 @@ export interface RankMeta {
   accent: string;
   accent2: string;
   themeColor: string;
+  themeColorLight: string;
 }
 
 export const RANKS: RankMeta[] = [
@@ -85,11 +92,12 @@ export const RANKS: RankMeta[] = [
     accent: '#3ee8a2',
     accent2: '#b9ffe2',
     themeColor: '#07130f',
+    themeColorLight: '#f0fbf6',
   },
   {
     id: 'legend',
     label: 'Legend',
-    tier: 'Legend V – I',
+    tier: 'Legend V — I',
     bansPerTeam: 4,
     totalBans: 8,
     blurb: 'Meta takes over.',
@@ -97,6 +105,7 @@ export const RANKS: RankMeta[] = [
     accent: '#f6cd76',
     accent2: '#fff0ba',
     themeColor: '#151006',
+    themeColorLight: '#fff8e7',
   },
   {
     id: 'mythic',
@@ -109,6 +118,7 @@ export const RANKS: RankMeta[] = [
     accent: '#c084fc',
     accent2: '#f6cd76',
     themeColor: '#110817',
+    themeColorLight: '#f8f1ff',
   },
 ];
 

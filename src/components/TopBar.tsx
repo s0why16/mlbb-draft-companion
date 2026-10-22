@@ -5,6 +5,7 @@ import { useGame } from '../state/GameContext';
 import { cn } from '../lib/cn';
 import { Logo } from './Logo';
 import { RankCrest } from './RankCrest';
+import { ThemeToggle } from './ThemeToggle';
 import { IconButton } from './Primitives';
 
 const FLOW: { key: string; label: string; screens: Screen[]; target: Screen }[] = [
@@ -92,12 +93,13 @@ export function TopBar() {
             {PATCH_LABEL}
           </span>
         )}
+        <ThemeToggle />
         {rank && (
           <div className="profile-pill">
             <span className="profile-pill__crest">
               <RankCrest rank={rank.id} size={28} />
             </span>
-            <span className="profile-pill__rank" style={{ color: rank.accent }}>
+            <span className="profile-pill__rank" style={{ color: 'var(--rank-accent-2)' }}>
               {rank.label}
             </span>
             <span className="profile-pill__bans">{rank.bansPerTeam} bans</span>

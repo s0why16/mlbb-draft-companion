@@ -27,7 +27,12 @@ Built for the 30 seconds between "your turn" and lock-in. No login, no remote mo
 
 ## Visual identity
 
-The interface is inspired by Mobile Legends' in-game emblem screens: deep navy glass panels, gold filigree, circular hero medallions, and an ornate rank crest.
+The interface is inspired by Mobile Legends' in-game emblem screens: glass panels, gold filigree, circular hero medallions, and an ornate rank crest. It has two themes:
+
+- **Midnight** - deep navy glass with saturated rank aurora.
+- **Daylight** - pearl-white glass with the same rank identity diffused into a soft pastel aurora.
+
+The theme follows the system preference until the topbar toggle is used, then persists per device. Both themes keep the same Epic, Legend, and Mythical Glory palettes.
 
 Selecting a rank immediately changes the app-wide aurora and glass tint:
 
@@ -41,6 +46,7 @@ The rank is also communicated by a crest, a text label, and a background waterma
 
 ## Features
 
+- **Dark and light themes** with rank-aware aurora, white glass panels, and a persisted topbar toggle.
 - **133 heroes** with portraits, lanes, roles, attributes, counter/synergy relationships, and meta scores.
 - **Three core picks per lane**, expandable with optional slots up to eight, with per-hero win-rate and match-count inputs.
 - **Compact hero command palette** with a dense 8-column desktop grid, 4-column mobile grid, alias search, and keyboard navigation.
@@ -161,7 +167,7 @@ src/
   lib/               comfort model, draft engine, strategy generator, storage, cloud
   screens/           Home, Onboarding, Setup, Ban, Draft, Strategy
   state/             reducer + local persistence
-  styles/            design tokens, base, components, screens, rank themes
+  styles/            design tokens, base, components, screens, rank themes, light theme
 public/
   heroes/            133 optimized WebP portraits
 supabase/

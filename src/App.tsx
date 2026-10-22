@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useGame } from './state/GameContext';
+import { useTheme } from './state/ThemeContext';
 import { TopBar } from './components/TopBar';
 import { RankCrest } from './components/RankCrest';
 import { RANK_BY_ID } from './data/meta';
@@ -13,6 +14,7 @@ import type { Screen } from './types';
 
 export default function App() {
   const { state, dispatch } = useGame();
+  const { theme } = useTheme();
   const { screen, profile, draft, rankPreview } = state;
   const rank = rankPreview ?? profile?.rank ?? 'legend';
   const rankMeta = RANK_BY_ID[rank];
@@ -20,12 +22,14 @@ export default function App() {
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.rank = rank;
-    const theme = document.querySelector('meta[name="theme-color"]');
-    if (theme) theme.setAttribute('content', rankMeta.themeColor);
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) {
+      themeMeta.setAttribute('content', theme === 'light' ? rankMeta.themeColorLight : rankMeta.themeColor);
+    }
     return () => {
       delete root.dataset.rank;
     };
-  }, [rank, rankMeta.themeColor]);
+  }, [rank, rankMeta.themeColor, rankMeta.themeColorLight, theme]);
 
   useEffect(() => {
     if (!profile && screen !== 'home' && screen !== 'onboarding') {

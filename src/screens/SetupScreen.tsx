@@ -14,6 +14,7 @@ import type { Hero, HeroStat, Lane } from '../types';
 import { HEROES } from '../data/heroes';
 import { LANES, LANE_BY_ID, PATCH_LABEL, RANK_BY_ID } from '../data/meta';
 import { useGame } from '../state/GameContext';
+import { useLaneColor } from '../lib/lane';
 import { comfortForHero, heroById, metaGrade } from '../lib/engine';
 import { CORE_POOL_SIZE, MAX_POOL_SIZE } from '../lib/pool';
 import { cn } from '../lib/cn';
@@ -23,6 +24,7 @@ import { LaneIcon } from '../components/LaneIcon';
 
 export function SetupScreen() {
   const { state, dispatch, startDraft } = useGame();
+  const laneColor = useLaneColor();
   const profile = state.profile!;
   const rank = RANK_BY_ID[profile.rank];
   const [lane, setLane] = useState<Lane | null>(state.draft.lane);
@@ -57,7 +59,7 @@ export function SetupScreen() {
         </div>
         <div className="setup-rank">
           <span className="eyebrow">Ranked context</span>
-          <strong style={{ color: rank.accent }}>{rank.label}</strong>
+          <strong style={{ color: 'var(--rank-accent)' }}>{rank.label}</strong>
           <span>{rank.bansPerTeam} bans per team · {rank.totalBans} total</span>
         </div>
       </div>
@@ -79,7 +81,7 @@ export function SetupScreen() {
                 key={item.id}
                 type="button"
                 className={cn('lane-card', active && 'is-active', itemPool.length === 0 && 'is-meta-only')}
-                style={{ '--lane-accent': item.color, '--lane-delay': `${index * 60}ms` } as React.CSSProperties}
+                style={{ '--lane-accent': laneColor(item), '--lane-delay': `${index * 60}ms` } as React.CSSProperties}
                 onClick={() => select(item.id)}
                 aria-pressed={active}
               >
@@ -114,11 +116,11 @@ export function SetupScreen() {
             <>
               <div className="match-brief__head">
                 <div>
-                  <Eyebrow style={{ color: laneMeta.color }}>Match brief</Eyebrow>
+                  <Eyebrow style={{ color: laneColor(laneMeta) }}>Match brief</Eyebrow>
                   <h2>{laneMeta.label}</h2>
                   <p>{laneMeta.job}</p>
                 </div>
-                <span className="match-brief__icon" style={{ color: laneMeta.color }}><LaneIcon lane={laneMeta.id} size={26} /></span>
+                <span className="match-brief__icon" style={{ color: laneColor(laneMeta) }}><LaneIcon lane={laneMeta.id} size={26} /></span>
               </div>
 
               <div className="match-brief__metrics">
@@ -199,7 +201,7 @@ export function SetupScreen() {
               <p>Your three core heroes, plus any optional picks, become the candidates the pick solver considers.</p>
               <div className="match-brief__placeholder-pills">
                 {LANES.map((item) => (
-                  <button key={item.id} type="button" onClick={() => select(item.id)} style={{ color: item.color, borderColor: `${item.color}44` }}>
+                  <button key={item.id} type="button" onClick={() => select(item.id)} style={{ color: laneColor(item), borderColor: `${laneColor(item)}44` }}>
                     <LaneIcon lane={item.id} size={13} /> {item.short}
                   </button>
                 ))}

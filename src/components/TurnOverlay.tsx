@@ -17,6 +17,7 @@ import type { Evaluation } from '../types';
 import { LANE_BY_ID } from '../data/meta';
 import { formatPercent, metaGrade } from '../lib/engine';
 import { cn } from '../lib/cn';
+import { useLaneColor } from '../lib/lane';
 import { Modal } from './Modal';
 import { Button, Chip, Eyebrow } from './Primitives';
 import { HeroPortrait } from './HeroPortrait';
@@ -44,6 +45,7 @@ export function TurnOverlay({
   disabled?: boolean;
 }) {
   const [phase, setPhase] = useState<'scanning' | 'results'>('scanning');
+  const laneColor = useLaneColor();
   const [elapsed, setElapsed] = useState(0);
   const startedAt = useRef(0);
   const snapshot = useMemo(() => evaluation.suggestions.slice(0, 2), [evaluation]);
@@ -193,7 +195,7 @@ export function TurnOverlay({
                         <h3>{option.hero.name}</h3>
                         <span>{option.hero.roles.join(' / ')} · {metaGrade(option.hero.meta)} tier</span>
                         <div className="verdict-card__tags">
-                          {option.hero.lanes.slice(0, 2).map((item) => <span key={item} style={{ color: LANE_BY_ID[item].color }}>{LANE_BY_ID[item].short}</span>)}
+                          {option.hero.lanes.slice(0, 2).map((item) => <span key={item} style={{ color: laneColor(LANE_BY_ID[item]) }}>{LANE_BY_ID[item].short}</span>)}
                           {option.hero.patch && <PatchBadge hero={option.hero} compact />}
                         </div>
                       </div>

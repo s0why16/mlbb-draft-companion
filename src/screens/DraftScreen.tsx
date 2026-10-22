@@ -21,6 +21,7 @@ import type { Draft, Evaluation, Hero, Recommendation, Team } from '../types';
 import { PATCH_META } from '../data/heroes';
 import { LANE_BY_ID, RANK_BY_ID } from '../data/meta';
 import { useGame } from '../state/GameContext';
+import { useLaneColor } from '../lib/lane';
 import { evaluateDraft, formatPercent, heroById, metaGrade } from '../lib/engine';
 import { usedHeroIds } from '../lib/search';
 import { cn } from '../lib/cn';
@@ -73,6 +74,7 @@ function PickRow({
   onMark: () => void;
 }) {
   const lane = hero?.lanes[0];
+  const laneColor = useLaneColor();
   if (!hero) {
     return (
       <button type="button" className={cn('pick-row pick-row--empty', `pick-row--${side}`)} onClick={onOpen}>
@@ -97,7 +99,7 @@ function PickRow({
           <PatchDot hero={hero} />
         </div>
         <span className="pick-row__meta">
-          {lane && <em style={{ color: LANE_BY_ID[lane].color }}>{LANE_BY_ID[lane].short}</em>}
+          {lane && <em style={{ color: laneColor(LANE_BY_ID[lane]) }}>{LANE_BY_ID[lane].short}</em>}
           {hero.roles.join(' / ')} · {metaGrade(hero.meta)}
         </span>
       </div>

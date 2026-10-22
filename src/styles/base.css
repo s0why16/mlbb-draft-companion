@@ -11,7 +11,7 @@
 
 html {
   scroll-behavior: smooth;
-  scrollbar-color: rgba(103, 215, 255, 0.24) transparent;
+  scrollbar-color: color-mix(in srgb, var(--focus) 24%, transparent) transparent;
 }
 
 body {
@@ -31,7 +31,7 @@ body::-webkit-scrollbar {
   width: 9px;
 }
 body::-webkit-scrollbar-thumb {
-  background: rgba(103, 215, 255, 0.2);
+  background: color-mix(in srgb, var(--focus) 24%, transparent);
   border-radius: 99px;
 }
 body::-webkit-scrollbar-track {
@@ -39,8 +39,8 @@ body::-webkit-scrollbar-track {
 }
 
 ::selection {
-  background: rgba(103, 215, 255, 0.28);
-  color: #fff;
+  background: color-mix(in srgb, var(--cyan) 28%, transparent);
+  color: var(--text);
 }
 
 button,
@@ -105,7 +105,7 @@ p {
 }
 
 :focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--focus);
   outline-offset: 3px;
 }
 
@@ -210,13 +210,34 @@ p {
   z-index: 200;
   height: var(--topbar-height);
   border-bottom: 1px solid transparent;
-  background: linear-gradient(to bottom, rgba(6, 10, 17, 0.92), rgba(6, 10, 17, 0.55));
+  background: var(--topbar-bg);
   backdrop-filter: blur(18px);
 }
 
 .topbar--inner {
   border-bottom-color: var(--line);
-  background: rgba(6, 10, 17, 0.82);
+  background: var(--topbar-bg-inner);
+}
+
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--rank-accent) 6%, var(--surface-glass));
+  color: var(--rank-accent);
+  transition: transform 0.18s var(--ease), border-color 0.18s, background 0.18s, color 0.18s;
+}
+.theme-toggle:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--rank-accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--rank-accent) 12%, var(--surface-glass));
+}
+.theme-toggle[data-mode='light'] {
+  color: var(--rank-accent-2);
 }
 
 .topbar__left,

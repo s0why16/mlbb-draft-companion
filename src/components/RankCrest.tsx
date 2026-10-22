@@ -72,7 +72,7 @@ export function RankCrest({
       {/* Shield */}
       <path
         d="M52 52h56v30c0 25-16 42-28 50-12-8-28-25-28-50V52Z"
-        fill="rgba(5, 10, 16, 0.55)"
+        fill="var(--crest-shield, rgba(5, 10, 16, 0.55))"
         stroke={`url(#${gradientId})`}
         strokeWidth="3"
         strokeLinejoin="round"
