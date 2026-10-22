@@ -1,4 +1,4 @@
-﻿# MLBB Draft Companion AI
+# MLBB Draft Companion AI
 
 **Draft like you already know the enemy.**
 
@@ -10,7 +10,7 @@ Built for the 30 seconds between "your turn" and lock-in. No login, no remote mo
 
 ## Live app
 
-- **Production:** [mlbb-draft-companion.vercel.app](https://mlbb-draft-companion.vercel.app)
+- **Production:** [mlbb-draft-companion-psi.vercel.app](https://mlbb-draft-companion-psi.vercel.app)
 - **Repository:** [s0why16/mlbb-draft-companion](https://github.com/s0why16/mlbb-draft-companion)
 
 ## The seven-step flow

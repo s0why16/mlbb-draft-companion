@@ -3,13 +3,19 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "MLBB Draft Companion AI - real-time Mobile Legends draft assistant.",
+  "description": "MLBB Draft Companion AI — real-time Mobile Legends draft assistant.",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "data:heroes": "node scripts/build-data.mjs",
+    "data:portraits": "node scripts/download-portraits.mjs",
+    "data:supabase": "node scripts/setup-supabase.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",
@@ -17,12 +23,10 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.1",
     "@types/react": "^18.3.18",
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "sharp": "^0.33.5",
-    "tsx": "^4.19.2",
     "typescript": "~5.7.2",
     "vite": "^6.0.5",
     "vitest": "^2.1.8"
