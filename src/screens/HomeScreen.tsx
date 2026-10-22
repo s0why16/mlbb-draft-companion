@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { HEROES, HERO_BY_ID, PATCH_META } from '../data/heroes';
 import { FEATURED_IDS, LANES, PATCH_LABEL, RANK_BY_ID } from '../data/meta';
+import { REGION_BY_ID } from '../data/regions';
 import { useGame } from '../state/GameContext';
 import { comfortForHero, metaGrade } from '../lib/engine';
 import { useLaneColor } from '../lib/lane';
@@ -254,7 +255,7 @@ export function HomeScreen() {
           <div className="profile-strip__rank">
             <span className="eyebrow">Active profile</span>
             <strong style={{ color: 'var(--rank-accent)' }}>{RANK_BY_ID[profile.rank].label}</strong>
-            <span>{RANK_BY_ID[profile.rank].bansPerTeam} bans per team · {corePool}/{CORE_POOL_SIZE * LANES.length} core{optionalPool ? ` · +${optionalPool} optional` : ''}</span>
+            <span>{RANK_BY_ID[profile.rank].range} · {REGION_BY_ID[profile.region].short} · {RANK_BY_ID[profile.rank].bansPerTeam} bans per team · {corePool}/{CORE_POOL_SIZE * LANES.length} core{optionalPool ? ` · +${optionalPool} optional` : ''}</span>
           </div>
           <div className="profile-strip__lanes">
             {LANES.map((lane) => {

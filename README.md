@@ -32,21 +32,41 @@ The interface is inspired by Mobile Legends' in-game emblem screens: glass panel
 - **Midnight** - deep navy glass with saturated rank aurora.
 - **Daylight** - pearl-white glass with the same rank identity diffused into a soft pastel aurora.
 
-The theme follows the system preference until the topbar toggle is used, then persists per device. Both themes keep the same Epic, Legend, and Mythical Glory palettes.
+The theme follows the system preference until the topbar toggle is used, then persists per device. Both themes keep the same rank palettes.
 
 Selecting a rank immediately changes the app-wide aurora and glass tint:
 
-| Rank | Theme |
-| --- | --- |
-| **Epic** | Emerald / jade aurora with green-tinted glass |
-| **Legend** | Molten gold and bronze aurora |
-| **Mythical Glory** | Violet aurora mixed with gold particles and trim |
+| Rank | Range | Theme |
+| --- | --- | --- |
+| **Epic** | V–I | Emerald / jade aurora with green-tinted glass |
+| **Legend** | V–I | Molten gold and bronze aurora |
+| **Mythic** | 0–24★ | Dark violet / magenta with silver wings |
+| **Mythical Honor** | 25–49★ | Bright cyan and turquoise energy |
+| **Mythical Glory** | 50–99★ | Violet and gold fusion with a fiery aura |
+| **Mythical Immortal** | 100+★ | Crimson and gold with burning flame accents |
 
-The rank is also communicated by a crest, a text label, and a background watermark, not color alone. The theme persists across onboarding, bans, the draft board, and the game plan.
+The rank is also communicated by a crest, a text label, a star range, and a background watermark, not color alone. The theme persists across onboarding, bans, the draft board, and the game plan.
+
+### Regional meta lens
+
+The profile also carries a regional draft lens. It is a directional set of archetype priors, not measured region-specific win-rate data. The engine uses it to adjust suggestions, ban priority, composition quality, win projection, and game-plan text.
+
+| Region | Draft tendency |
+| --- | --- |
+| **Global** | Neutral baseline |
+| **SEA** | Assassin junglers, rotations, objective tempo |
+| **CIS** | Early invades, dive-heavy frontline |
+| **EU** | Wave control, disengage, utility tank junglers |
+| **NA** | Scaling, marksman protection, safe setups |
+| **LATAM** | 5v5 initiation, AoE control, frontline engage |
+| **China** | Lane control, fast clears, objective setup |
+| **India** | Skirmishing, early invaders, setter roamers |
 
 ## Features
 
 - **Dark and light themes** with rank-aware aurora, white glass panels, and a persisted topbar toggle.
+- **Six rank tiers** with pre-Mythic divisions, Mythic star ranges, and 3 / 4 / 5 bans per team.
+- **Regional meta lens** with Global plus seven directional region priors.
 - **133 heroes** with portraits, lanes, roles, attributes, counter/synergy relationships, and meta scores.
 - **Three core picks per lane**, expandable with optional slots up to eight, with per-hero win-rate and match-count inputs.
 - **Compact hero command palette** with a dense 8-column desktop grid, 4-column mobile grid, alias search, and keyboard navigation.
@@ -83,6 +103,10 @@ Each known pick contributes normalized attributes, roles, damage type, and tags.
 ### 3. Matchup graph
 
 The bundled data includes reciprocal counter and synergy edges. Ally-vs-enemy relationships add or subtract from team power. Tag interactions cover answers such as anti-heal into sustain, peel into dive, and immunity/mobility into chain CC.
+
+### Region + rank meta lens
+
+The profile combines a region and a rank tier into one deterministic weighting lens. Global is the neutral baseline; SEA, CIS, EU, NA, LATAM, China, and India apply directional archetype priors. Mythic, Mythical Honor, Mythical Glory, and Mythical Immortal progressively shift weight from comfort and fight-heavy picks toward counters, composition, macro, and objective timing. The lens affects suggestion scores, ban priority, team quality, win projection, and game-plan text. It does not claim measured region-specific win rates.
 
 ### 4. Partial-board projection
 

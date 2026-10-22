@@ -15,9 +15,10 @@ import {
   Trash2,
   WandSparkles,
 } from 'lucide-react';
-import type { Hero, Lane, LanePools, Profile, Rank, Role } from '../types';
+import type { Hero, Lane, LanePools, Profile, Rank, Region, Role } from '../types';
 import { HEROES } from '../data/heroes';
-import { LANES, LANE_BY_ID, PATCH_LABEL, RANK_BY_ID, RANKS } from '../data/meta';
+import { LANES, LANE_BY_ID, PATCH_LABEL, RANK_BY_ID, RANK_FAMILIES, RANKS } from '../data/meta';
+import { REGIONS, REGION_BY_ID } from '../data/regions';
 import { useGame } from '../state/GameContext';
 import { useLaneColor } from '../lib/lane';
 import { useToast } from '../components/Toast';
@@ -53,6 +54,7 @@ export function OnboardingScreen() {
   const existing = state.profile;
   const [step, setStep] = useState(0);
   const [rank, setRank] = useState<Rank>(existing?.rank ?? 'legend');
+  const [region, setRegion] = useState<Region>(existing?.region ?? 'global');
   const [pools, setPools] = useState<LanePools>(existing ? clonePools(existing.pools) : clonePools(EMPTY_POOLS));
   const [slotCounts, setSlotCounts] = useState<Record<Lane, number>>(() => {
     const counts = {} as Record<Lane, number>;
@@ -83,8 +85,9 @@ export function OnboardingScreen() {
   }, [query, lane, role, allLanes, patchOnly]);
 
   const currentProfile = (): Profile => ({
-    ...(existing ?? createProfile(rank)),
-    version: 1,
+    ...(existing ?? createProfile(rank, region)),
+    version: 2,
+    region,
     rank,
     pools: clonePools(pools),
     updatedAt: new Date().toISOString(),
@@ -236,87 +239,132 @@ export function OnboardingScreen() {
       </div>
 
       {step === 0 && (
-        <div className="rank-step">
-          <div className="rank-cards">
-            {RANKS.map((item) => {
-              const active = rank === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={cn('rank-card', active && 'is-active')}
-                  data-rank={item.id}
-                  onClick={() => {
-                    setRank(item.id);
-                    dispatch({ type: 'SET_RANK_PREVIEW', rank: item.id });
-                  }}
-                  aria-pressed={active}
-                >
-                  <span className="rank-card__crest" aria-hidden="true">
-                    <RankCrest rank={item.id} size={170} />
-                  </span>
-                  <div className="rank-card__top">
-                    <span className="rank-card__badge"><RankCrest rank={item.id} size={34} /></span>
-                    <span className="rank-card__check">{active && <Check size={14} />}</span>
-                  </div>
-                  <span className="eyebrow">{item.tier}</span>
-                  <h2>{item.label}</h2>
-                  <p>{item.detail}</p>
-                  <div className="rank-card__footer">
-                    <span className="rank-card__bans">
-                      <Crosshair size={13} /> {item.bansPerTeam} bans / team
-                    </span>
-                    <span className="rank-card__total">{item.totalBans} total</span>
-                  </div>
-                  <span className="rank-card__watermark">{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="rank-step-wrap">
+          <section className="region-picker" aria-label="Regional meta lens">
+            <div className="region-picker__head">
+              <div>
+                <Eyebrow>Regional meta lens</Eyebrow>
+                <p>Directional draft priors, not measured region-specific win rates.</p>
+              </div>
+              <span className="region-picker__current">{REGION_BY_ID[region].short}</span>
+            </div>
+            <div className="region-picker__options">
+              {REGIONS.map((item) => {
+                const active = region === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={cn('region-chip', active && 'is-active')}
+                    onClick={() => setRegion(item.id)}
+                    aria-pressed={active}
+                  >
+                    <strong>{item.short}</strong>
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
-          <aside className="rank-aside">
-            <div className="rank-aside__queue">
-              <Eyebrow>What changes with rank</Eyebrow>
-              <div className="rank-aside__row">
-                <span>Ban slots</span>
-                <strong>{RANK_BY_ID[rank].bansPerTeam} per team</strong>
-              </div>
-              <div className="rank-aside__row">
-                <span>Ban model</span>
-                <strong>{rank === 'epic' ? 'Skill floor first' : rank === 'legend' ? 'Flex value rising' : 'Ceiling & flex'}</strong>
-              </div>
-              <div className="rank-aside__row">
-                <span>Pool weighting</span>
-                <strong>Always personal</strong>
-              </div>
+          <div className="rank-step">
+            <div className="rank-groups">
+              {RANK_FAMILIES.map((family) => (
+                <section key={family.id} className="rank-group">
+                  <div className="rank-group__head">
+                    <Eyebrow>{family.label}</Eyebrow>
+                    <span>{family.description}</span>
+                  </div>
+                  <div className={cn('rank-cards', family.id === 'mythic' ? 'rank-cards--mythic' : 'rank-cards--pre')}>
+                    {RANKS.filter((item) => item.family === family.id).map((item) => {
+                      const active = rank === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={cn('rank-card', active && 'is-active')}
+                          data-rank={item.id}
+                          onClick={() => {
+                            setRank(item.id);
+                            dispatch({ type: 'SET_RANK_PREVIEW', rank: item.id });
+                          }}
+                          aria-pressed={active}
+                        >
+                          <span className="rank-card__crest" aria-hidden="true">
+                            <RankCrest rank={item.id} size={170} />
+                          </span>
+                          <div className="rank-card__top">
+                            <span className="rank-card__badge"><RankCrest rank={item.id} size={34} /></span>
+                            <span className="rank-card__check">{active && <Check size={14} />}</span>
+                          </div>
+                          <span className="eyebrow">{item.tier}</span>
+                          <h2>{item.label}</h2>
+                          <p>{item.detail}</p>
+                          <div className="rank-card__footer">
+                            <span className="rank-card__bans">
+                              <Crosshair size={13} /> {item.bansPerTeam} bans / team
+                            </span>
+                            <span className="rank-card__total">{item.totalBans} total</span>
+                          </div>
+                          <span className="rank-card__watermark">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
             </div>
-            <div className="rank-aside__note">
-              <ShieldCheck size={16} />
-              <p>
-                Changing rank later does not erase your pool. The ban phase simply adds the extra slots your tier uses.
-              </p>
-            </div>
-            <div className="rank-aside__restore">
-              <button type="button" className="text-link" onClick={() => setRestoreOpen((value) => !value)}>
-                <CloudDownload size={14} /> Already have a backup? Restore
-              </button>
-              {restoreOpen && (
-                <CloudBackupPanel
-                  compact
-                  profile={null}
-                  onRestored={(restored) => {
-                    setRank(restored.rank);
-                    dispatch({ type: 'SET_RANK_PREVIEW', rank: restored.rank });
-                    setPools(clonePools(restored.pools));
-                    syncSlotCounts(restored.pools);
-                    setRestoreOpen(false);
-                    setStep(2);
-                    toast.push('Backup loaded into the editor', { detail: 'Review your pools, then save to keep them on this device.' });
-                  }}
-                />
-              )}
-            </div>
-          </aside>
+
+            <aside className="rank-aside">
+              <div className="rank-aside__queue">
+                <Eyebrow>Your meta lens</Eyebrow>
+                <div className="rank-aside__row">
+                  <span>Region</span>
+                  <strong>{REGION_BY_ID[region].short} · {REGION_BY_ID[region].subtitle}</strong>
+                </div>
+                <div className="rank-aside__row">
+                  <span>Rank tier</span>
+                  <strong>{RANK_BY_ID[rank].label} · {RANK_BY_ID[rank].range}</strong>
+                </div>
+                <div className="rank-aside__row">
+                  <span>Ban slots</span>
+                  <strong>{RANK_BY_ID[rank].bansPerTeam} per team</strong>
+                </div>
+                <div className="rank-aside__row">
+                  <span>Tier behavior</span>
+                  <strong>{RANK_BY_ID[rank].blurb}</strong>
+                </div>
+              </div>
+              <p className="rank-aside__lens">{REGION_BY_ID[region].description}</p>
+              <div className="rank-aside__note">
+                <ShieldCheck size={16} />
+                <p>
+                  Regional lenses are directional draft priors built from archetypes and hero tendencies, not measured region-specific win rates.
+                </p>
+              </div>
+              <div className="rank-aside__restore">
+                <button type="button" className="text-link" onClick={() => setRestoreOpen((value) => !value)}>
+                  <CloudDownload size={14} /> Already have a backup? Restore
+                </button>
+                {restoreOpen && (
+                  <CloudBackupPanel
+                    compact
+                    profile={null}
+                    onRestored={(restored) => {
+                      setRank(restored.rank);
+                      setRegion(restored.region);
+                      dispatch({ type: 'SET_RANK_PREVIEW', rank: restored.rank });
+                      setPools(clonePools(restored.pools));
+                      syncSlotCounts(restored.pools);
+                      setRestoreOpen(false);
+                      setStep(2);
+                      toast.push('Backup loaded into the editor', { detail: 'Review your pools, then save to keep them on this device.' });
+                    }}
+                  />
+                )}
+              </div>
+            </aside>
+          </div>
         </div>
       )}
 
@@ -536,11 +584,13 @@ export function OnboardingScreen() {
             <section className="review-main">
               <div className="review-rank">
                 <div>
-                  <Eyebrow>Rank</Eyebrow>
+                  <Eyebrow>Rank &amp; region</Eyebrow>
                   <h2 style={{ color: 'var(--rank-accent)' }}>{RANK_BY_ID[rank].label}</h2>
-                  <p>{RANK_BY_ID[rank].bansPerTeam} bans per team · {RANK_BY_ID[rank].totalBans} total in draft</p>
+                  <p>
+                    {RANK_BY_ID[rank].range} · {REGION_BY_ID[region].short} · {RANK_BY_ID[rank].bansPerTeam} bans per team · {RANK_BY_ID[rank].totalBans} total in draft
+                  </p>
                 </div>
-                <button type="button" className="text-link" onClick={() => setStep(0)}>Change rank</button>
+                <button type="button" className="text-link" onClick={() => setStep(0)}>Change region or rank</button>
               </div>
 
               <div className="review-pools">
@@ -623,6 +673,7 @@ export function OnboardingScreen() {
                 compact
                 onRestored={(restored) => {
                   setRank(restored.rank);
+                  setRegion(restored.region);
                   setPools(clonePools(restored.pools));
                   syncSlotCounts(restored.pools);
                   toast.push('Backup restored', { detail: 'Review the loaded pools, then save to keep them locally.' });

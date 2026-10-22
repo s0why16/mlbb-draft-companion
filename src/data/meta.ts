@@ -66,10 +66,30 @@ export const LANES: LaneMeta[] = [
 
 export const LANE_BY_ID = Object.fromEntries(LANES.map((lane) => [lane.id, lane])) as Record<Lane, LaneMeta>;
 
+export type RankFamily = 'pre-mythic' | 'mythic';
+export type RankWing = 'classic' | 'silver' | 'turquoise' | 'phoenix' | 'inferno';
+export type RankAura = 'none' | 'glow' | 'fire';
+
+export interface RankWeights {
+  comfort: number;
+  meta: number;
+  counter: number;
+  composition: number;
+  macro: number;
+  objective: number;
+  fight: number;
+  banFlex: number;
+  banDifficulty: number;
+  banCounter: number;
+}
+
 export interface RankMeta {
   id: Rank;
   label: string;
+  shortLabel: string;
   tier: string;
+  range: string;
+  family: RankFamily;
   bansPerTeam: number;
   totalBans: number;
   blurb: string;
@@ -78,13 +98,25 @@ export interface RankMeta {
   accent2: string;
   themeColor: string;
   themeColorLight: string;
+  wing: RankWing;
+  aura: RankAura;
+  weights: RankWeights;
+  tagWeights: Partial<Record<HeroTag, number>>;
 }
+
+export const RANK_FAMILIES: { id: RankFamily; label: string; description: string }[] = [
+  { id: 'pre-mythic', label: 'Pre-Mythic', description: 'Roman numeral divisions from V to I.' },
+  { id: 'mythic', label: 'Mythic hierarchy', description: 'Star counters only. No Roman numerals.' },
+];
 
 export const RANKS: RankMeta[] = [
   {
     id: 'epic',
     label: 'Epic',
-    tier: 'Epic V – I',
+    shortLabel: 'Epic',
+    tier: 'Epic V–I',
+    range: 'V–I',
+    family: 'pre-mythic',
     bansPerTeam: 3,
     totalBans: 6,
     blurb: 'Comfort first.',
@@ -93,11 +125,29 @@ export const RANKS: RankMeta[] = [
     accent2: '#b9ffe2',
     themeColor: '#07130f',
     themeColorLight: '#f0fbf6',
+    wing: 'classic',
+    aura: 'none',
+    weights: {
+      comfort: 1.3,
+      meta: 0.9,
+      counter: 0.85,
+      composition: 0.85,
+      macro: 0.8,
+      objective: 0.9,
+      fight: 1.15,
+      banFlex: 0.8,
+      banDifficulty: 0.45,
+      banCounter: 0.8,
+    },
+    tagWeights: { sustain: 1.05 },
   },
   {
     id: 'legend',
     label: 'Legend',
-    tier: 'Legend V — I',
+    shortLabel: 'Legend',
+    tier: 'Legend V–I',
+    range: 'V–I',
+    family: 'pre-mythic',
     bansPerTeam: 4,
     totalBans: 8,
     blurb: 'Meta takes over.',
@@ -106,19 +156,145 @@ export const RANKS: RankMeta[] = [
     accent2: '#fff0ba',
     themeColor: '#151006',
     themeColorLight: '#fff8e7',
+    wing: 'classic',
+    aura: 'none',
+    weights: {
+      comfort: 1.15,
+      meta: 1,
+      counter: 1,
+      composition: 1,
+      macro: 1,
+      objective: 1,
+      fight: 1.05,
+      banFlex: 1,
+      banDifficulty: 0.7,
+      banCounter: 1,
+    },
+    tagWeights: { earlyPressure: 1.05 },
   },
   {
     id: 'mythic',
+    label: 'Mythic',
+    shortLabel: 'Mythic',
+    tier: 'Mythic 0–24★',
+    range: '0–24★',
+    family: 'mythic',
+    bansPerTeam: 5,
+    totalBans: 10,
+    blurb: 'Fight-first.',
+    detail: '5 bans per team. Chaotic drafts reward comfort damage picks over strict macro.',
+    accent: '#c084fc',
+    accent2: '#e9d5ff',
+    themeColor: '#110817',
+    themeColorLight: '#f8f1ff',
+    wing: 'silver',
+    aura: 'none',
+    weights: {
+      comfort: 1.35,
+      meta: 0.9,
+      counter: 0.8,
+      composition: 0.75,
+      macro: 0.7,
+      objective: 0.9,
+      fight: 1.2,
+      banFlex: 0.9,
+      banDifficulty: 0.8,
+      banCounter: 0.7,
+    },
+    tagWeights: { burst: 1.1, sustain: 1.05, tanky: 1.05 },
+  },
+  {
+    id: 'mythical_honor',
+    label: 'Mythical Honor',
+    shortLabel: 'Honor',
+    tier: 'Mythical Honor 25–49★',
+    range: '25–49★',
+    family: 'mythic',
+    bansPerTeam: 5,
+    totalBans: 10,
+    blurb: 'Meta settles in.',
+    detail: '5 bans per team. Standard roles and objective play take over, but rotations can still drift.',
+    accent: '#4ed8ff',
+    accent2: '#a5f3ff',
+    themeColor: '#04141c',
+    themeColorLight: '#eefaff',
+    wing: 'turquoise',
+    aura: 'glow',
+    weights: {
+      comfort: 1.1,
+      meta: 1,
+      counter: 1,
+      composition: 1,
+      macro: 1,
+      objective: 1,
+      fight: 1,
+      banFlex: 1,
+      banDifficulty: 0.95,
+      banCounter: 1,
+    },
+    tagWeights: { earlyPressure: 1.05, scaling: 1.05 },
+  },
+  {
+    id: 'mythical_glory',
     label: 'Mythical Glory',
-    tier: 'Mythic · Glory · Immortal',
+    shortLabel: 'Glory',
+    tier: 'Mythical Glory 50–99★',
+    range: '50–99★',
+    family: 'mythic',
     bansPerTeam: 5,
     totalBans: 10,
     blurb: 'Every edge matters.',
-    detail: '5 bans per team. Skill ceilings, flex value, and counter chains are weighted.',
+    detail: '5 bans per team. Counter chains, flex value, wave control, and objective timing decide drafts.',
     accent: '#c084fc',
     accent2: '#f6cd76',
     themeColor: '#110817',
     themeColorLight: '#f8f1ff',
+    wing: 'phoenix',
+    aura: 'fire',
+    weights: {
+      comfort: 0.9,
+      meta: 1.05,
+      counter: 1.2,
+      composition: 1.15,
+      macro: 1.15,
+      objective: 1.15,
+      fight: 0.95,
+      banFlex: 1.05,
+      banDifficulty: 1.1,
+      banCounter: 1.2,
+    },
+    tagWeights: { splitPush: 1.1, poke: 1.1, peel: 1.1 },
+  },
+  {
+    id: 'mythical_immortal',
+    label: 'Mythical Immortal',
+    shortLabel: 'Immortal',
+    tier: 'Mythical Immortal 100+★',
+    range: '100+★',
+    family: 'mythic',
+    bansPerTeam: 5,
+    totalBans: 10,
+    blurb: 'Elite tempo.',
+    detail: '5 bans per team. Organized stacks punish slow drafts, early mistakes, and predictable rotations.',
+    accent: '#ff5a75',
+    accent2: '#f6cd76',
+    themeColor: '#18060b',
+    themeColorLight: '#fff0f2',
+    wing: 'inferno',
+    aura: 'fire',
+    weights: {
+      comfort: 0.85,
+      meta: 1.05,
+      counter: 1.2,
+      composition: 1.2,
+      macro: 1.25,
+      objective: 1.25,
+      fight: 0.9,
+      banFlex: 1.1,
+      banDifficulty: 1.1,
+      banCounter: 1.25,
+    },
+    tagWeights: { earlyPressure: 1.2, backlineDive: 1.15, mobility: 1.1, engage: 1.1 },
   },
 ];
 

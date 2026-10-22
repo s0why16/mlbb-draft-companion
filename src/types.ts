@@ -1,5 +1,13 @@
 export type Lane = 'exp' | 'gold' | 'mid' | 'jungle' | 'roam';
-export type Rank = 'epic' | 'legend' | 'mythic';
+export type Rank =
+  | 'epic'
+  | 'legend'
+  | 'mythic'
+  | 'mythical_honor'
+  | 'mythical_glory'
+  | 'mythical_immortal';
+
+export type Region = 'global' | 'sea' | 'cis' | 'eu' | 'na' | 'latam' | 'china' | 'india';
 export type Team = 'ally' | 'enemy';
 export type Screen = 'home' | 'onboarding' | 'setup' | 'ban' | 'draft' | 'strategy';
 export type PatchStatus = 'buff' | 'nerf' | 'adjust';
@@ -74,7 +82,8 @@ export interface HeroStat {
 export type LanePools = Record<Lane, HeroStat[]>;
 
 export interface Profile {
-  version: 1;
+  version: 2;
+  region: Region;
   rank: Rank;
   pools: LanePools;
   updatedAt: string;
@@ -142,6 +151,7 @@ export interface Evaluation {
   suggestions: Recommendation[];
   lane: Lane | null;
   myHero: Hero | null;
+  metaLabel: string;
 }
 
 export interface PhasePlan {
@@ -169,6 +179,9 @@ export interface Strategy {
   threats: Threat[];
   notes: string[];
   confidence: number;
+  metaLabel: string;
+  regionNote: string;
+  rankNote: string;
 }
 
 export interface AppState {

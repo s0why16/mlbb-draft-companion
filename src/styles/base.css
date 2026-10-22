@@ -357,6 +357,14 @@ p {
   padding-left: 8px;
 }
 
+.profile-pill__range {
+  font-family: var(--font-mono);
+  font-size: 7.5px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
 .profile-pill__edit {
   display: grid;
   place-items: center;
@@ -577,6 +585,7 @@ p {
   .brand__sub,
   .patch-pill,
   .profile-pill__bans,
+  .profile-pill__range,
   .flow-steps {
     display: none;
   }

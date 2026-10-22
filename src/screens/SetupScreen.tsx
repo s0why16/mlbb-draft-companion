@@ -13,6 +13,7 @@ import {
 import type { Hero, HeroStat, Lane } from '../types';
 import { HEROES } from '../data/heroes';
 import { LANES, LANE_BY_ID, PATCH_LABEL, RANK_BY_ID } from '../data/meta';
+import { REGION_BY_ID } from '../data/regions';
 import { useGame } from '../state/GameContext';
 import { useLaneColor } from '../lib/lane';
 import { comfortForHero, heroById, metaGrade } from '../lib/engine';
@@ -60,7 +61,7 @@ export function SetupScreen() {
         <div className="setup-rank">
           <span className="eyebrow">Ranked context</span>
           <strong style={{ color: 'var(--rank-accent)' }}>{rank.label}</strong>
-          <span>{rank.bansPerTeam} bans per team · {rank.totalBans} total</span>
+          <span>{rank.range} · {REGION_BY_ID[profile.region].short} · {rank.bansPerTeam} bans per team · {rank.totalBans} total</span>
         </div>
       </div>
 

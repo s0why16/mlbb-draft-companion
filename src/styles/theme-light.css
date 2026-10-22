@@ -44,6 +44,40 @@
 [data-theme='light'] [data-rank='mythic'] {
   --rank-1: #ecdcff;
   --rank-2: #a56ef0;
+  --rank-3: #cbd5e1;
+  --rank-accent: #7e3fc4;
+  --rank-accent-2: #6d2da8;
+  --rank-glow: rgba(126, 63, 196, 0.18);
+  --rank-deep: #1b0a2b;
+  --crest-light: #ffffff;
+  --crest-mid: #a56ef0;
+  --crest-deep: #6d2da8;
+  --crest-line: rgba(148, 163, 184, 0.65);
+  --crest-core: #ffffff;
+  --crest-shield: rgba(255, 255, 255, 0.58);
+}
+
+[data-theme='light'][data-rank='mythical_honor'],
+[data-theme='light'] [data-rank='mythical_honor'] {
+  --rank-1: #d9f6ff;
+  --rank-2: #3bb8dd;
+  --rank-3: #d7fff4;
+  --rank-accent: #0b7f9a;
+  --rank-accent-2: #075f76;
+  --rank-glow: rgba(11, 127, 154, 0.18);
+  --rank-deep: #03141c;
+  --crest-light: #ffffff;
+  --crest-mid: #3bb8dd;
+  --crest-deep: #0b6b84;
+  --crest-line: rgba(11, 107, 132, 0.55);
+  --crest-core: #ffffff;
+  --crest-shield: rgba(255, 255, 255, 0.58);
+}
+
+[data-theme='light'][data-rank='mythical_glory'],
+[data-theme='light'] [data-rank='mythical_glory'] {
+  --rank-1: #ecdcff;
+  --rank-2: #a56ef0;
   --rank-3: #e8c06a;
   --rank-accent: #8a4fd1;
   --rank-accent-2: #6d2da8;
@@ -52,6 +86,23 @@
   --crest-light: #fff7ff;
   --crest-mid: #a56ef0;
   --crest-deep: #6d2da8;
+  --crest-line: rgba(160, 112, 24, 0.55);
+  --crest-core: #fff7da;
+  --crest-shield: rgba(255, 255, 255, 0.58);
+}
+
+[data-theme='light'][data-rank='mythical_immortal'],
+[data-theme='light'] [data-rank='mythical_immortal'] {
+  --rank-1: #ffe0e4;
+  --rank-2: #e05a76;
+  --rank-3: #e8c06a;
+  --rank-accent: #b32445;
+  --rank-accent-2: #8a5a0b;
+  --rank-glow: rgba(179, 36, 69, 0.2);
+  --rank-deep: #2a060d;
+  --crest-light: #fff5f5;
+  --crest-mid: #e05a76;
+  --crest-deep: #9f1239;
   --crest-line: rgba(160, 112, 24, 0.55);
   --crest-core: #fff7da;
   --crest-shield: rgba(255, 255, 255, 0.58);
@@ -299,10 +350,29 @@
 }
 [data-theme='light'] .rank-card[data-rank='mythic'] {
   background:
+    radial-gradient(circle at 82% 7%, rgba(165, 110, 240, 0.2), transparent 48%),
+    radial-gradient(circle at 22% 76%, rgba(148, 163, 184, 0.16), transparent 58%),
+    linear-gradient(155deg, rgba(251, 247, 255, 0.96), rgba(255, 255, 255, 0.62));
+}
+[data-theme='light'] .rank-card[data-rank='mythical_honor'] {
+  background:
+    radial-gradient(circle at 82% 7%, rgba(59, 184, 221, 0.22), transparent 48%),
+    radial-gradient(circle at 20% 78%, rgba(126, 240, 216, 0.16), transparent 58%),
+    linear-gradient(155deg, rgba(242, 252, 255, 0.96), rgba(255, 255, 255, 0.62));
+}
+[data-theme='light'] .rank-card[data-rank='mythical_glory'] {
+  background:
     radial-gradient(circle at 82% 7%, rgba(232, 192, 106, 0.2), transparent 45%),
     radial-gradient(circle at 24% 24%, rgba(165, 110, 240, 0.18), transparent 56%),
     radial-gradient(circle at 20% 80%, rgba(138, 79, 209, 0.13), transparent 62%),
     linear-gradient(155deg, rgba(253, 249, 255, 0.96), rgba(255, 255, 255, 0.62));
+}
+[data-theme='light'] .rank-card[data-rank='mythical_immortal'] {
+  background:
+    radial-gradient(circle at 82% 7%, rgba(232, 192, 106, 0.2), transparent 45%),
+    radial-gradient(circle at 24% 24%, rgba(224, 90, 118, 0.18), transparent 56%),
+    radial-gradient(circle at 20% 80%, rgba(179, 36, 69, 0.13), transparent 62%),
+    linear-gradient(155deg, rgba(255, 247, 248, 0.96), rgba(255, 255, 255, 0.62));
 }
 [data-theme='light'] .rank-card.is-active {
   box-shadow:
@@ -863,4 +933,32 @@
     width: 30px;
     height: 30px;
   }
+}
+
+
+/* ---------- Region + rank hierarchy on light glass ---------- */
+
+[data-theme='light'] .region-picker {
+  background: rgba(255, 255, 255, 0.66);
+  border-color: var(--line);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(16px) saturate(1.2);
+}
+[data-theme='light'] .region-picker__current {
+  background: color-mix(in srgb, var(--rank-accent) 8%, white);
+  border-color: color-mix(in srgb, var(--rank-accent) 26%, var(--line));
+}
+[data-theme='light'] .region-chip {
+  background: rgba(255, 255, 255, 0.55);
+}
+[data-theme='light'] .region-chip:hover {
+  background: rgba(255, 255, 255, 0.82);
+}
+[data-theme='light'] .region-chip.is-active {
+  background: color-mix(in srgb, var(--rank-accent) 9%, white);
+}
+[data-theme='light'] .rank-card[data-rank='mythical_glory'] .rank-card__crest::after,
+[data-theme='light'] .rank-card[data-rank='mythical_immortal'] .rank-card__crest::after,
+[data-theme='light'] .rank-card[data-rank='mythical_honor'] .rank-card__crest::after {
+  opacity: 0.45;
 }

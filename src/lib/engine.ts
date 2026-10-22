@@ -1,5 +1,6 @@
 import { HEROES, HERO_BY_ID } from '../data/heroes';
 import { LANE_BY_ID } from '../data/meta';
+import { buildMetaLens, lensHeroScore, type MetaLens } from './metaLens';
 import type {
   Draft,
   Evaluation,
@@ -254,16 +255,17 @@ function damageProfile(heroes: Hero[]): TeamAnalysis['damage'] {
   return 'balanced';
 }
 
-function compositionQuality(metrics: TeamMetrics, warnings: string[], known: number): number {
+function compositionQuality(metrics: TeamMetrics, warnings: string[], known: number, lens: MetaLens): number {
   let quality = 55;
-  quality += Math.min(17, metrics.frontline * 0.17);
-  quality += Math.min(13, metrics.control * 0.13);
-  quality += Math.min(8, metrics.engage * 0.08);
-  quality += Math.min(7, metrics.scaling * 0.07);
+  quality += Math.min(17, metrics.frontline * 0.17 * lens.style.frontline);
+  quality += Math.min(13, metrics.control * 0.13 * lens.style.control);
+  quality += Math.min(8, metrics.engage * 0.08 * lens.style.engage);
+  quality += Math.min(7, metrics.scaling * 0.07 * lens.style.scaling);
   quality += metrics.magicShare >= 22 && metrics.magicShare <= 62 ? 7 : -5;
   quality -= warnings.length * 3.4;
   const confidenceBlend = 0.32 + 0.68 * Math.min(1, known / 5);
-  return clamp(55 + (quality - 55) * confidenceBlend, 18, 94);
+  const adjusted = 55 + (quality - 55) * confidenceBlend * lens.compositionWeight;
+  return clamp(adjusted, 18, 94);
 }
 
 function globalWinRatePower(hero: Hero): number {
@@ -275,6 +277,7 @@ export function analyzeTeam(
   heroes: Hero[],
   side: 'ally' | 'enemy',
   profile: Profile | null,
+  lens: MetaLens = buildMetaLens(profile),
 ): TeamAnalysis {
   const metrics = computeMetrics(heroes);
   const warnings = teamWarnings(heroes, metrics);
@@ -289,13 +292,14 @@ export function analyzeTeam(
   const meta = padded(heroes.reduce((sum, hero) => sum + hero.meta, 0));
   const sideStrength = padded(
     heroes.reduce((sum, hero) => {
-      if (side === 'enemy') return sum + globalWinRatePower(hero);
+      const bias = lensHeroScore(hero, lens);
+      if (side === 'enemy') return sum + globalWinRatePower(hero) + bias;
       const comfort = comfortForHero(statForHero(profile, hero.id));
-      return sum + (comfort ? comfort.score * 0.58 + hero.meta * 0.42 : hero.meta);
+      return sum + (comfort ? comfort.score * 0.58 + hero.meta * 0.42 : hero.meta) + bias;
     }, 0),
   );
   const flex = padded(heroes.reduce((sum, hero) => sum + (hero.lanes.length >= 2 ? 65 : 50), 0));
-  const quality = compositionQuality(metrics, warnings, heroes.length);
+  const quality = compositionQuality(metrics, warnings, heroes.length, lens);
   const power = clamp(meta * 0.44 + sideStrength * 0.18 + quality * 0.29 + flex * 0.09);
 
   return {
@@ -327,6 +331,7 @@ function projectWinRate(
   enemyAnalysis: TeamAnalysis,
   matchup: ReturnType<typeof relationshipsFor>,
   enemyMatchup: ReturnType<typeof relationshipsFor>,
+  lens: MetaLens,
 ): { winRate: number; confidence: number } {
   if (!ally.length && !enemy.length) return { winRate: 50, confidence: 0.25 };
   const minKnown = Math.min(ally.length, enemy.length);
@@ -342,8 +347,16 @@ function projectWinRate(
   }
   const coverage = clamp(minKnown / 5, 0.12, 1);
   const rawEdge = (allyAnalysis.power - enemyAnalysis.power) * 0.62 + matchup.value * 1.1 - enemyMatchup.value * 0.55;
+  const styleEdge =
+    ((allyAnalysis.metrics.early - enemyAnalysis.metrics.early) * lens.style.early +
+      (allyAnalysis.metrics.scaling - enemyAnalysis.metrics.scaling) * lens.style.scaling +
+      (allyAnalysis.metrics.engage - enemyAnalysis.metrics.engage) * lens.style.engage +
+      (allyAnalysis.metrics.dive - enemyAnalysis.metrics.dive) * lens.style.dive +
+      (allyAnalysis.metrics.peel - enemyAnalysis.metrics.peel) * lens.style.peel) *
+    0.035 *
+    lens.compositionWeight;
   return {
-    winRate: clamp(50 + rawEdge * coverage, 27, 73),
+    winRate: clamp(50 + rawEdge * coverage + styleEdge * coverage, 27, 73),
     confidence: clamp(0.25 + 0.75 * (minKnown / 5), 0.25, 1),
   };
 }
@@ -353,13 +366,14 @@ export function evaluateDraft(
   profile: Profile | null,
   options: { includeSuggestions?: boolean } = {},
 ): Evaluation {
+  const lens = buildMetaLens(profile);
   const { ally, enemy } = boardHeroes(draft);
-  const allyAnalysis = analyzeTeam(ally, 'ally', profile);
-  const enemyAnalysis = analyzeTeam(enemy, 'enemy', profile);
+  const allyAnalysis = analyzeTeam(ally, 'ally', profile, lens);
+  const enemyAnalysis = analyzeTeam(enemy, 'enemy', profile, lens);
 
   const matchup = relationshipsFor(ally, enemy);
   const enemyMatchup = relationshipsFor(enemy, ally);
-  const { winRate, confidence } = projectWinRate(ally, enemy, allyAnalysis, enemyAnalysis, matchup, enemyMatchup);
+  const { winRate, confidence } = projectWinRate(ally, enemy, allyAnalysis, enemyAnalysis, matchup, enemyMatchup, lens);
 
   const nextSlot = draft.picks.ally.findIndex((id) => !id);
   const myHero =
@@ -375,7 +389,7 @@ export function evaluateDraft(
   else if (edge <= -6) headline = 'Draft disadvantage';
   else if (edge <= -2.5) headline = 'Slight deficit';
 
-  const suggestions = options.includeSuggestions === false ? [] : buildSuggestions(draft, profile, winRate, nextSlot, ally, enemy);
+  const suggestions = options.includeSuggestions === false ? [] : buildSuggestions(draft, profile, winRate, nextSlot, ally, enemy, lens);
   return {
     ally: allyAnalysis,
     enemy: enemyAnalysis,
@@ -386,6 +400,7 @@ export function evaluateDraft(
     suggestions,
     lane: draft.lane,
     myHero: myHero ?? null,
+    metaLabel: lens.label,
   };
 }
 
@@ -403,6 +418,7 @@ function buildSuggestions(
   nextSlot: number,
   ally: Hero[],
   enemy: Hero[],
+  lens: MetaLens,
 ): Recommendation[] {
   const lane = draft.lane;
   const used = new Set<string>([...draft.bans.ally, ...draft.bans.enemy, ...draft.picks.ally, ...draft.picks.enemy].filter(Boolean) as string[]);
@@ -422,7 +438,7 @@ function buildSuggestions(
   }
 
   const recommendations = candidates.slice(0, 8).map(({ hero, stat }) => {
-    const simulated = nextSlot === -1 ? null : simulateWithCandidate(draft, hero.id, profile);
+    const simulated = nextSlot === -1 ? null : simulateWithCandidate(draft, hero.id, profile, lens);
     const projected = simulated?.winRate ?? baseWinRate;
     const delta = projected - baseWinRate;
     const comfort = comfortForHero(stat);
@@ -431,7 +447,15 @@ function buildSuggestions(
     const patchScore = hero.patch ? (hero.patch.status === 'buff' ? 3.2 : hero.patch.status === 'nerf' ? -3.2 : 0) : 0;
     const draftImpact = clamp(50 + delta * 14, 0, 100);
     const comfortTerm = comfort?.score ?? hero.meta;
-    const score = hero.meta * 0.31 + comfortTerm * 0.27 + fit * 0.15 + draftImpact * 0.19 + poolPriority(profile, lane, hero.id) + patchScore;
+    const lensScore = lensHeroScore(hero, lens);
+    const score =
+      hero.meta * 0.31 * lens.metaWeight +
+      comfortTerm * 0.27 * lens.comfortWeight +
+      fit * 0.15 +
+      draftImpact * 0.19 * lens.counterWeight +
+      poolPriority(profile, lane, hero.id) +
+      patchScore +
+      lensScore;
     const reasons: string[] = [];
     const risks: string[] = [];
 
@@ -468,14 +492,25 @@ function buildSuggestions(
     }
 
     if (!reasons.length) reasons.push(`Top-${Math.max(1, Math.ceil((hero.metaRank ?? 60) / 20))} meta pick with a reliable skill floor.`);
+    if (lens.region.id !== 'global' && lensScore >= 1.2) {
+      reasons.push(`${lens.region.short} meta: ${hero.name} fits the regional draft lens.`);
+    } else if (lens.region.id !== 'global' && lensScore >= 0.4) {
+      reasons.push(`${lens.region.short} lens: this archetype is weighted up.`);
+    }
+    if (lens.rank.id === 'mythic') reasons.push('Mythic drafts reward comfort and fight-heavy picks.');
+    else if (lens.rank.id === 'mythical_honor') reasons.push('Honor drafts reward standard roles and objective play.');
+    else if (lens.rank.id === 'mythical_glory') reasons.push('Glory drafts weight counters, flex, and wave control.');
+    else if (lens.rank.id === 'mythical_immortal') reasons.push('Immortal tempo punishes slow drafts and early mistakes.');
 
     const priority = (reason: string) => {
       if (reason.startsWith('Counters')) return 0;
       if (reason.startsWith('Synergies')) return 1;
       if (reason.startsWith('Improves')) return 2;
       if (reason.startsWith('Adds') || reason.startsWith('Gives') || reason.startsWith('Finally') || reason.startsWith('Has the') || reason.startsWith('Brings')) return 3;
+      if (reason.startsWith(`${lens.region.short} `)) return 3;
       if (reason.includes('% WR across')) return 4;
       if (reason.startsWith('Buffed')) return 5;
+      if (reason.startsWith('Mythic ') || reason.startsWith('Honor ') || reason.startsWith('Glory ') || reason.startsWith('Immortal ')) return 5;
       if (reason.startsWith('Natural')) return 6;
       return 7;
     };
@@ -510,16 +545,16 @@ interface Simulated {
   enemyAnalysis: TeamAnalysis;
 }
 
-function simulateWithCandidate(draft: Draft, candidateId: string | null, profile: Profile | null): Simulated {
+function simulateWithCandidate(draft: Draft, candidateId: string | null, profile: Profile | null, lens: MetaLens): Simulated {
   const ally = draft.picks.ally.map(heroById).filter((h): h is Hero => Boolean(h));
   const enemy = draft.picks.enemy.map(heroById).filter((h): h is Hero => Boolean(h));
   const candidate = heroById(candidateId);
   if (candidate && !ally.some((h) => h.id === candidate.id)) ally.push(candidate);
-  const allyAnalysis = analyzeTeam(ally, 'ally', profile);
-  const enemyAnalysis = analyzeTeam(enemy, 'enemy', profile);
+  const allyAnalysis = analyzeTeam(ally, 'ally', profile, lens);
+  const enemyAnalysis = analyzeTeam(enemy, 'enemy', profile, lens);
   const matchup = relationshipsFor(ally, enemy);
   const enemyMatchup = relationshipsFor(enemy, ally);
-  const projection = projectWinRate(ally, enemy, allyAnalysis, enemyAnalysis, matchup, enemyMatchup);
+  const projection = projectWinRate(ally, enemy, allyAnalysis, enemyAnalysis, matchup, enemyMatchup, lens);
   return {
     winRate: projection.winRate,
     matchup,
@@ -547,16 +582,23 @@ export function suggestBans(profile: Profile | null, draft: Draft, limit = 5): B
   // fair game because you cannot play it in this match.
   const activePool = new Set<string>(draft.lane && profile ? profile.pools[draft.lane].map((entry) => entry.heroId) : []);
   const relevantPool = activePool.size ? activePool : ownPool;
-  const rank = profile?.rank ?? 'legend';
-  const rankFactor = rank === 'epic' ? 0 : rank === 'legend' ? 0.5 : 1;
+  const lens = buildMetaLens(profile);
 
   const suggestions = HEROES.filter((hero) => !used.has(hero.id) && !activePool.has(hero.id)).map((hero) => {
     const poolCounters = [...relevantPool].filter((id) => hero.counters.includes(id)).length;
     const flex = hero.lanes.length >= 2 ? 5 : 0;
     const patch = hero.patch?.status === 'buff' ? 4 : hero.patch?.status === 'nerf' ? -2 : 0;
-    const difficultyFactor = (hero.attributes.difficulty - 50) * rankFactor * 0.08;
-    const epicFactor = rank === 'epic' ? (50 - hero.attributes.difficulty) * 0.045 : 0;
-    const score = hero.meta * 0.48 + (hero.banRate ?? 0) * 0.19 + flex + patch + poolCounters * 5.2 + difficultyFactor + epicFactor;
+    const difficultyFactor = (hero.attributes.difficulty - 50) * lens.banWeights.difficulty * 0.08;
+    const epicFactor = profile?.rank === 'epic' ? (50 - hero.attributes.difficulty) * 0.045 : 0;
+    const score =
+      hero.meta * 0.48 * lens.metaWeight +
+      (hero.banRate ?? 0) * 0.19 * lens.banWeights.flex +
+      flex * lens.banWeights.flex +
+      patch +
+      poolCounters * 5.2 * lens.banWeights.counter +
+      difficultyFactor +
+      epicFactor +
+      lensHeroScore(hero, lens) * 0.6;
 
     const reasons: string[] = [];
     if (poolCounters) reasons.push(`Beats ${poolCounters} of your ${draft.lane ? LANE_BY_ID[draft.lane].short : ''} pool`.trim());
@@ -565,6 +607,9 @@ export function suggestBans(profile: Profile | null, draft: Draft, limit = 5): B
     if (hero.banRate && hero.banRate >= 12) reasons.push(`${hero.banRate.toFixed(1)}% ban rate`);
     if (hero.lanes.length >= 2) reasons.push(`Flex: ${hero.lanes.map((lane) => LANE_BY_ID[lane].short).join(' / ')}`);
     if (patch > 0) reasons.push('Buffed in 2.2.16');
+    if (lens.region.id !== 'global' && lensHeroScore(hero, lens) >= 1) reasons.push(`${lens.region.short} ban lens: fits the regional threat profile`);
+    if (lens.rank.id === 'mythical_glory') reasons.push('Glory bans target flex and counter chains');
+    else if (lens.rank.id === 'mythical_immortal') reasons.push('Immortal bans target early tempo and invade pressure');
     if (!reasons.length) reasons.push('Strong blind-pick value across the rank pool');
     return { hero, score, reasons: reasons.slice(0, 3) };
   });

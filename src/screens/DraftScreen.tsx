@@ -377,7 +377,7 @@ export function DraftScreen() {
         </div>
         <div className="draft-page__actions">
           <div className="draft-page__rank">
-            <span className="eyebrow">{rank.label} · {rank.bansPerTeam} bans</span>
+            <span className="eyebrow">{rank.label} {rank.range} · {evaluation.metaLabel} · {rank.bansPerTeam} bans</span>
             <strong>{formatPercent(evaluation.winRate)} <em>blue</em></strong>
           </div>
           <Button variant="ghost" size="sm" icon={<ShieldBan size={14} />} onClick={() => dispatch({ type: 'SET_SCREEN', screen: 'ban' })}>

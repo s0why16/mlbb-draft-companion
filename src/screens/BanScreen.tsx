@@ -16,6 +16,7 @@ import {
 import type { Hero, Team } from '../types';
 import { HEROES } from '../data/heroes';
 import { LANE_BY_ID, PATCH_LABEL, RANK_BY_ID } from '../data/meta';
+import { REGION_BY_ID } from '../data/regions';
 import { useGame } from '../state/GameContext';
 import { suggestBans, metaGrade } from '../lib/engine';
 import { searchHeroes, usedHeroIds } from '../lib/search';
@@ -31,6 +32,7 @@ export function BanScreen() {
   const toast = useToast();
   const profile = state.profile!;
   const rank = RANK_BY_ID[profile.rank];
+  const region = REGION_BY_ID[profile.region];
   const [banTeam, setBanTeam] = useState<Team>('ally');
   const [query, setQuery] = useState('');
   const [focus, setFocus] = useState(0);
@@ -183,14 +185,14 @@ export function BanScreen() {
           <Eyebrow>Step 3 · Ban phase</Eyebrow>
           <h1>Take their comfort away.</h1>
           <p>
-            {rank.label} uses {rank.bansPerTeam} bans per team. The list weighs current meta, patch direction, flex value,
+            {rank.label} {rank.range} · {region.short} lens · {rank.bansPerTeam} bans per team. The list weighs current meta, patch direction, flex value,
             and which of your pooled heroes each threat beats.
           </p>
         </div>
         <div className="ban-head__meta">
           <Chip tone="gold"><Timer size={12} /> ~30s in-game</Chip>
           <Chip tone="cyan"><Crosshair size={12} /> {rank.totalBans} total bans</Chip>
-          <Chip tone="muted">{PATCH_LABEL}</Chip>
+          <Chip tone="muted">{region.short} · {PATCH_LABEL}</Chip>
         </div>
       </div>
 

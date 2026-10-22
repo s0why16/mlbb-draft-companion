@@ -8,6 +8,7 @@ import {
   Crosshair,
   Crown,
   Flame,
+  Globe2,
   HeartPulse,
   Moon,
   RotateCcw,
@@ -236,6 +237,21 @@ export function StrategyScreen() {
         </main>
 
         <aside className="strategy-aside">
+          <section className="side-card side-card--meta">
+            <div className="side-card__head">
+              <span className="side-card__icon side-card__icon--gold"><Globe2 size={17} /></span>
+              <div>
+                <Eyebrow>Regional game plan</Eyebrow>
+                <h3>{strategy.metaLabel}</h3>
+              </div>
+            </div>
+            <p>{strategy.regionNote}</p>
+            <div className="side-card__alt">
+              <span>Rank focus</span>
+              <strong>{strategy.rankNote}</strong>
+            </div>
+          </section>
+
           <section className="side-card side-card--spell">
             <div className="side-card__head">
               <span className="side-card__icon side-card__icon--gold"><WandSparkles size={17} /></span>

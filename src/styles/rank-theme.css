@@ -35,16 +35,61 @@
 }
 
 [data-rank='mythic'] {
+  --rank-1: #2a1638;
+  --rank-2: #b45cff;
+  --rank-3: #cbd5e1;
+  --rank-accent: #c084fc;
+  --rank-accent-2: #e9d5ff;
+  --rank-glow: rgba(180, 92, 255, 0.3);
+  --rank-deep: #0d0614;
+  --crest-light: #f3e8ff;
+  --crest-mid: #c084fc;
+  --crest-deep: #7e22ce;
+  --crest-line: rgba(203, 213, 225, 0.8);
+  --crest-core: #ffffff;
+}
+
+[data-rank='mythical_honor'] {
+  --rank-1: #063a4a;
+  --rank-2: #4ed8ff;
+  --rank-3: #7ef0d8;
+  --rank-accent: #4ed8ff;
+  --rank-accent-2: #a5f3ff;
+  --rank-glow: rgba(78, 216, 255, 0.3);
+  --rank-deep: #03141c;
+  --crest-light: #e6fbff;
+  --crest-mid: #4ed8ff;
+  --crest-deep: #0e7490;
+  --crest-line: rgba(165, 243, 255, 0.85);
+  --crest-core: #eaffff;
+}
+
+[data-rank='mythical_glory'] {
   --rank-1: #4b1f7a;
   --rank-2: #c084fc;
   --rank-3: #f6cd76;
   --rank-accent: #c084fc;
   --rank-accent-2: #f6cd76;
-  --rank-glow: rgba(192, 132, 252, 0.28);
+  --rank-glow: rgba(192, 132, 252, 0.3);
   --rank-deep: #0d0614;
   --crest-light: #f4e3ff;
   --crest-mid: #c084fc;
   --crest-deep: #6d2da8;
+  --crest-line: rgba(255, 240, 190, 0.86);
+  --crest-core: #fff4c8;
+}
+
+[data-rank='mythical_immortal'] {
+  --rank-1: #4a0d1c;
+  --rank-2: #ff5a75;
+  --rank-3: #f6cd76;
+  --rank-accent: #ff5a75;
+  --rank-accent-2: #f6cd76;
+  --rank-glow: rgba(255, 90, 117, 0.34);
+  --rank-deep: #18060b;
+  --crest-light: #ffe4e6;
+  --crest-mid: #ff5a75;
+  --crest-deep: #9f1239;
   --crest-line: rgba(255, 240, 190, 0.86);
   --crest-core: #fff4c8;
 }
@@ -126,6 +171,14 @@
   opacity: 0.045;
   pointer-events: none;
   transition: color 700ms var(--ease);
+}
+
+.app-shell[data-rank='mythical_honor'] .app-bg__rank,
+.app-shell[data-rank='mythical_glory'] .app-bg__rank {
+  font-size: clamp(64px, 9.4vw, 150px);
+}
+.app-shell[data-rank='mythical_immortal'] .app-bg__rank {
+  font-size: clamp(54px, 8vw, 132px);
 }
 
 /* ---------- Top bar / navigation ---------- */
@@ -244,10 +297,82 @@
 }
 .rank-card[data-rank='mythic'] {
   background:
-    radial-gradient(circle at 82% 7%, rgba(246, 205, 118, 0.18), transparent 45%),
-    radial-gradient(circle at 24% 24%, rgba(192, 132, 252, 0.24), transparent 56%),
-    radial-gradient(circle at 20% 80%, rgba(75, 31, 122, 0.55), transparent 62%),
-    linear-gradient(155deg, rgba(47, 20, 71, 0.86), rgba(12, 6, 18, 0.98));
+    radial-gradient(circle at 80% 8%, rgba(180, 92, 255, 0.22), transparent 52%),
+    radial-gradient(circle at 22% 76%, rgba(148, 163, 184, 0.2), transparent 58%),
+    linear-gradient(155deg, rgba(42, 22, 56, 0.86), rgba(12, 6, 18, 0.98));
+}
+.rank-card[data-rank='mythical_honor'] {
+  background:
+    radial-gradient(circle at 80% 8%, rgba(78, 216, 255, 0.24), transparent 52%),
+    radial-gradient(circle at 20% 78%, rgba(126, 240, 216, 0.18), transparent 58%),
+    linear-gradient(155deg, rgba(6, 58, 74, 0.88), rgba(3, 20, 28, 0.98));
+}
+.rank-card[data-rank='mythical_glory'] {
+  background:
+    radial-gradient(circle at 82% 7%, rgba(246, 205, 118, 0.2), transparent 45%),
+    radial-gradient(circle at 24% 24%, rgba(192, 132, 252, 0.26), transparent 56%),
+    radial-gradient(circle at 20% 80%, rgba(75, 31, 122, 0.58), transparent 62%),
+    linear-gradient(155deg, rgba(47, 20, 71, 0.88), rgba(12, 6, 18, 0.98));
+}
+.rank-card[data-rank='mythical_immortal'] {
+  background:
+    radial-gradient(circle at 82% 8%, rgba(246, 205, 118, 0.2), transparent 45%),
+    radial-gradient(circle at 24% 26%, rgba(255, 90, 117, 0.26), transparent 56%),
+    radial-gradient(circle at 20% 80%, rgba(74, 13, 28, 0.62), transparent 62%),
+    linear-gradient(155deg, rgba(74, 13, 28, 0.9), rgba(24, 6, 11, 0.98));
+}
+
+.rank-card[data-rank='mythical_honor'] h2,
+.rank-card[data-rank='mythical_glory'] h2,
+.rank-card[data-rank='mythical_immortal'] h2 {
+  font-size: clamp(26px, 2.6vw, 40px);
+  line-height: 1.02;
+}
+.rank-card[data-rank='mythical_honor'] .rank-card__watermark,
+.rank-card[data-rank='mythical_glory'] .rank-card__watermark,
+.rank-card[data-rank='mythical_immortal'] .rank-card__watermark {
+  font-size: clamp(48px, 5.6vw, 80px);
+}
+.rank-card[data-rank='mythical_glory'] .rank-card__crest::after,
+.rank-card[data-rank='mythical_immortal'] .rank-card__crest::after,
+.rank-card[data-rank='mythical_honor'] .rank-card__crest::after {
+  content: '';
+  position: absolute;
+  inset: 10%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--rank-glow), transparent 68%);
+  filter: blur(18px);
+  animation: rank-pulse 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+.rank-card[data-rank='mythic'] .rank-card__crest {
+  filter: drop-shadow(0 0 24px rgba(203, 213, 225, 0.28)) saturate(0.7);
+}
+.rank-card[data-rank='mythical_honor'] .rank-card__crest {
+  filter: drop-shadow(0 0 28px rgba(78, 216, 255, 0.35));
+}
+.rank-card[data-rank='mythical_glory'] .rank-card__crest {
+  filter: drop-shadow(0 0 32px rgba(192, 132, 252, 0.36));
+}
+.rank-card[data-rank='mythical_immortal'] .rank-card__crest {
+  filter: drop-shadow(0 0 34px rgba(255, 90, 117, 0.42));
+}
+.rank-card[data-rank='mythical_honor'] .rank-card__crest,
+.rank-card[data-rank='mythical_honor'].is-active .rank-card__crest {
+  transform: rotate(5deg) scale(1.04);
+}
+.rank-card[data-rank='mythical_glory'] .rank-card__crest,
+.rank-card[data-rank='mythical_glory'].is-active .rank-card__crest {
+  transform: rotate(5deg) scale(1.1);
+}
+.rank-card[data-rank='mythical_immortal'] .rank-card__crest,
+.rank-card[data-rank='mythical_immortal'].is-active .rank-card__crest {
+  transform: rotate(6deg) scale(1.14);
+}
+@keyframes rank-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1.06); }
 }
 .rank-card::after {
   content: '';
@@ -551,7 +676,9 @@
   .app-bg__glow,
   .app-bg__crest,
   .rank-card,
-  .rank-card__crest {
+  .rank-card__crest,
+  .rank-card__crest::after {
     transition: none !important;
+    animation: none !important;
   }
 }

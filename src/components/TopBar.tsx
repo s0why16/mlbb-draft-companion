@@ -1,6 +1,7 @@
 import { ArrowLeft, ChevronRight, Pencil, Sparkles } from 'lucide-react';
 import type { Screen } from '../types';
 import { RANK_BY_ID, PATCH_LABEL } from '../data/meta';
+import { REGION_BY_ID } from '../data/regions';
 import { useGame } from '../state/GameContext';
 import { cn } from '../lib/cn';
 import { Logo } from './Logo';
@@ -58,6 +59,7 @@ export function TopBar() {
   const { state, dispatch } = useGame();
   const activeRank = state.rankPreview ?? state.profile?.rank;
   const rank = activeRank ? RANK_BY_ID[activeRank] : null;
+  const region = REGION_BY_ID[state.profile?.region ?? 'global'];
   const inner = state.screen !== 'home';
 
   const goBack = () => {
@@ -99,10 +101,11 @@ export function TopBar() {
             <span className="profile-pill__crest">
               <RankCrest rank={rank.id} size={28} />
             </span>
-            <span className="profile-pill__rank" style={{ color: 'var(--rank-accent-2)' }}>
-              {rank.label}
+            <span className="profile-pill__rank" style={{ color: 'var(--rank-accent-2)' }} title={rank.label}>
+              {rank.shortLabel}
             </span>
-            <span className="profile-pill__bans">{rank.bansPerTeam} bans</span>
+            <span className="profile-pill__range">{rank.range}</span>
+            <span className="profile-pill__bans">{region.short} · {rank.bansPerTeam} bans</span>
             <button
               type="button"
               className="profile-pill__edit"

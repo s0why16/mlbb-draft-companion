@@ -1,5 +1,6 @@
 import type { Draft, Evaluation, Hero, Lane, PhasePlan, Profile, Strategy, StrategyItem } from '../types';
 import { LANE_BY_ID } from '../data/meta';
+import { buildMetaLens } from './metaLens';
 import { comfortForHero, heroById, statForHero } from './engine';
 
 const HEALERS = new Set(['estes', 'rafaela', 'floryn', 'angela', 'minotaur', 'belerick', 'uranus', 'alice', 'esmeralda', 'yu-zhong', 'thamuz', 'x-borg', 'ruby']);
@@ -268,6 +269,7 @@ export function buildStrategy(evaluation: Evaluation, draft: Draft, profile: Pro
   const ally = evaluation.ally.picks;
   const hero = evaluation.myHero ?? [...ally].sort((a, b) => b.meta - a.meta)[0] ?? null;
   if (!hero) return null;
+  const lens = buildMetaLens(profile);
 
   const lane = draft.lane;
   const laneEnemy = enemy.find((item) => (lane ? item.lanes.includes(lane) : true));
@@ -321,6 +323,9 @@ export function buildStrategy(evaluation: Evaluation, draft: Draft, profile: Pro
     threats,
     notes: notes.slice(0, 3),
     confidence: evaluation.confidence,
+    metaLabel: lens.label,
+    regionNote: lens.notes.draft,
+    rankNote: `${lens.rank.label} ${lens.rank.range}: ${lens.rank.detail}`,
   };
 }
 
@@ -328,6 +333,7 @@ export function strategyToText(strategy: Strategy): string {
   const lines = [
     `MLBB DRAFT COMPANION — MATCH PLAN`,
     `${strategy.hero?.name ?? 'My pick'} · ${laneLabel(strategy.lane)} · ${strategy.headline}`,
+    `Meta lens: ${strategy.metaLabel}`,
     ``,
     `WIN CONDITION`,
     strategy.winCondition,
@@ -342,6 +348,12 @@ export function strategyToText(strategy: Strategy): string {
     ``,
     `PRIORITY TARGETS`,
     strategy.priorityTargets.join(', ') || 'None identified',
+    ``,
+    `REGIONAL GAME PLAN`,
+    strategy.regionNote,
+    ``,
+    `RANK FOCUS`,
+    strategy.rankNote,
     ``,
     `EXECUTION NOTES`,
     ...strategy.notes.map((note) => `• ${note}`),
