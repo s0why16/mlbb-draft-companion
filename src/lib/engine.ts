@@ -279,21 +279,24 @@ export function analyzeTeam(
   const metrics = computeMetrics(heroes);
   const warnings = teamWarnings(heroes, metrics);
   const threats = threatsFor(heroes);
-  const meta = avg(heroes.map((hero) => hero.meta));
-  const sideStrength =
-    side === 'ally'
-      ? avg(
-          heroes.map((hero) => {
-            const comfort = comfortForHero(statForHero(profile, hero.id));
-            return comfort ? comfort.score * 0.58 + hero.meta * 0.42 : hero.meta;
-          }),
-        )
-      : avg(heroes.map(globalWinRatePower));
-  const flex = avg(heroes.map((hero) => (hero.lanes.length >= 2 ? 65 : 50)));
+  // Treat empty slots as a neutral 55-rated body rather than averaging only the
+  // known picks. This keeps partial boards comparable and means adding a
+  // sensible second hero never lowers the projection just because the first
+  // hero was a high-meta outlier.
+  const neutral = 55;
+  const unknown = Math.max(0, 5 - heroes.length);
+  const padded = (sum: number) => (sum + unknown * neutral) / 5;
+  const meta = padded(heroes.reduce((sum, hero) => sum + hero.meta, 0));
+  const sideStrength = padded(
+    heroes.reduce((sum, hero) => {
+      if (side === 'enemy') return sum + globalWinRatePower(hero);
+      const comfort = comfortForHero(statForHero(profile, hero.id));
+      return sum + (comfort ? comfort.score * 0.58 + hero.meta * 0.42 : hero.meta);
+    }, 0),
+  );
+  const flex = padded(heroes.reduce((sum, hero) => sum + (hero.lanes.length >= 2 ? 65 : 50), 0));
   const quality = compositionQuality(metrics, warnings, heroes.length);
-  const power = heroes.length
-    ? clamp(meta * 0.44 + sideStrength * 0.18 + quality * 0.29 + flex * 0.09)
-    : 50;
+  const power = clamp(meta * 0.44 + sideStrength * 0.18 + quality * 0.29 + flex * 0.09);
 
   return {
     known: heroes.length,
@@ -338,8 +341,7 @@ function projectWinRate(
     };
   }
   const coverage = clamp(minKnown / 5, 0.12, 1);
-  const volumeEdge = (ally.length - enemy.length) * 5;
-  const rawEdge = (allyAnalysis.power - enemyAnalysis.power + volumeEdge) * 0.62 + matchup.value * 1.1 - enemyMatchup.value * 0.55;
+  const rawEdge = (allyAnalysis.power - enemyAnalysis.power) * 0.62 + matchup.value * 1.1 - enemyMatchup.value * 0.55;
   return {
     winRate: clamp(50 + rawEdge * coverage, 27, 73),
     confidence: clamp(0.25 + 0.75 * (minKnown / 5), 0.25, 1),
