@@ -6,6 +6,8 @@ A fast, local-first draft assistant for Mobile Legends: Bang Bang. It combines a
 
 Built for the 30 seconds between "your turn" and lock-in. No login, no remote model call, and no waiting on an API during the draft.
 
+[![Deploy to Vercel](https://github.com/s0why16/mlbb-draft-companion/actions/workflows/deploy.yml/badge.svg)](https://github.com/s0why16/mlbb-draft-companion/actions/workflows/deploy.yml)
+
 ![Draft Companion preview](docs/preview.webp)
 
 ## Live app
