@@ -1,4 +1,4 @@
-﻿# MLBB Draft Companion AI
+# MLBB Draft Companion AI
 
 **Draft like you already know the enemy.**
 
