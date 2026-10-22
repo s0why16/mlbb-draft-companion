@@ -1,14 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   ArrowRight,
   Check,
   Crosshair,
+  Crown,
   Gauge,
   Pencil,
   ShieldBan,
   Sparkles,
   Swords,
   Timer,
+  Users,
 } from 'lucide-react';
 import type { Hero, HeroStat, Lane } from '../types';
 import { HEROES } from '../data/heroes';
@@ -17,6 +19,7 @@ import { REGION_BY_ID } from '../data/regions';
 import { useGame } from '../state/GameContext';
 import { useLaneColor } from '../lib/lane';
 import { comfortForHero, heroById, metaGrade } from '../lib/engine';
+import { SELF_MEMBER_ID, coordinationForSize, partyLabel, squadMembers } from '../lib/party';
 import { CORE_POOL_SIZE, MAX_POOL_SIZE } from '../lib/pool';
 import { cn } from '../lib/cn';
 import { Button, Chip, Eyebrow, Meter } from '../components/Primitives';
@@ -28,9 +31,24 @@ export function SetupScreen() {
   const laneColor = useLaneColor();
   const profile = state.profile!;
   const rank = RANK_BY_ID[profile.rank];
-  const [lane, setLane] = useState<Lane | null>(state.draft.lane);
+  const members = useMemo(() => squadMembers(profile), [profile]);
+  const [activeMemberId, setActiveMemberId] = useState<string>(() => {
+    const requested = state.draft.activeMemberId;
+    return requested && members.some((member) => member.id === requested) ? requested : SELF_MEMBER_ID;
+  });
+  const [memberLanes, setMemberLanes] = useState<Record<string, Lane | null>>(() => {
+    const next: Record<string, Lane | null> = {};
+    for (const member of members) {
+      const existing = state.draft.memberLanes?.[member.id];
+      next[member.id] = existing ?? (member.isSelf ? state.draft.lane : member.preferredLane) ?? null;
+    }
+    return next;
+  });
+
+  const activeMember = members.find((member) => member.id === activeMemberId) ?? members[0];
+  const lane = memberLanes[activeMember.id] ?? null;
   const laneMeta = lane ? LANE_BY_ID[lane] : null;
-  const pool = lane ? profile.pools[lane] : [];
+  const pool = lane ? activeMember.pools[lane] : [];
   const fallbackPool = lane && pool.length === 0
     ? HEROES.filter((hero) => hero.lanes.includes(lane)).sort((a, b) => b.meta - a.meta).slice(0, CORE_POOL_SIZE)
     : [];
@@ -48,27 +66,70 @@ export function SetupScreen() {
         .sort((a, b) => (b.comfort?.score ?? b.entry.hero.meta) - (a.comfort?.score ?? a.entry.hero.meta))[0]
     : null;
 
-  const select = (nextLane: Lane) => setLane(nextLane);
+  const selfLane = memberLanes[SELF_MEMBER_ID] ?? null;
+  const partySize = members.length;
+  const coordination = coordinationForSize(partySize);
+
+  const select = (nextLane: Lane) => {
+    setMemberLanes((current) => ({ ...current, [activeMember.id]: nextLane }));
+    dispatch({ type: 'SET_MEMBER_LANE', memberId: activeMember.id, lane: nextLane });
+  };
+
+  const start = () => {
+    if (!selfLane) return;
+    startDraft(selfLane, memberLanes);
+  };
 
   return (
     <div className="setup-page">
       <div className="page-head setup-head">
         <div>
           <Eyebrow>Step 2 · Match initialization</Eyebrow>
-          <h1>Which lane did you get?</h1>
-          <p>Pick your assigned role. The draft board only surfaces that lane's core three plus any optional heroes you saved.</p>
+          <h1>{partySize > 1 ? 'Assign lanes to your squad.' : 'Which lane did you get?'}</h1>
+          <p>
+            {partySize > 1
+              ? 'Pick your lane first, then each friend’s lane in order. The pick solver uses every member’s own lane pool and cross-references the whole squad.'
+              : 'Pick your assigned role. The draft board only surfaces that lane’s core three plus any optional heroes you saved.'}
+          </p>
         </div>
         <div className="setup-rank">
           <span className="eyebrow">Ranked context</span>
           <strong style={{ color: 'var(--rank-accent)' }}>{rank.label}</strong>
-          <span>{rank.range} · {REGION_BY_ID[profile.region].short} · {rank.bansPerTeam} bans per team · {rank.totalBans} total</span>
+          <span>{rank.range} · {REGION_BY_ID[profile.region].short} · {partyLabel(partySize)} · {rank.bansPerTeam} bans per team</span>
         </div>
       </div>
+
+      {partySize > 1 && (
+        <div className="member-tabs member-tabs--setup" role="tablist" aria-label="Party members">
+          {members.map((member, index) => {
+            const active = member.id === activeMember.id;
+            const memberLane = memberLanes[member.id] ?? null;
+            return (
+              <button
+                key={member.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={cn('member-tab', active && 'is-active', member.isSelf && 'member-tab--self')}
+                onClick={() => setActiveMemberId(member.id)}
+              >
+                <span className="member-tab__index">{member.isSelf ? <Crown size={12} /> : `P${index}`}</span>
+                <span className="member-tab__name">{member.name}</span>
+                <span className={cn('member-tab__lane', !memberLane && 'is-empty')}>
+                  {memberLane ? LANE_BY_ID[memberLane].short : 'Lane?'}
+                </span>
+                <em>{memberLane ? member.pools[memberLane].length : 0}</em>
+              </button>
+            );
+          })}
+          <span className="member-tabs__coordination"><Users size={13} /> ×{coordination.toFixed(2)}</span>
+        </div>
+      )}
 
       <div className="setup-layout">
         <div className="lane-cards">
           {LANES.map((item, index) => {
-            const itemPool = profile.pools[item.id];
+            const itemPool = activeMember.pools[item.id];
             const heroes = itemPool.length
               ? itemPool.map((entry) => heroById(entry.heroId)).filter((hero): hero is Hero => Boolean(hero))
               : HEROES.filter((hero) => hero.lanes.includes(item.id)).sort((a, b) => b.meta - a.meta).slice(0, 3);
@@ -117,7 +178,9 @@ export function SetupScreen() {
             <>
               <div className="match-brief__head">
                 <div>
-                  <Eyebrow style={{ color: laneColor(laneMeta) }}>Match brief</Eyebrow>
+                  <Eyebrow style={{ color: laneColor(laneMeta) }}>
+                    {activeMember.isSelf ? 'Match brief' : `${activeMember.name} · match brief`}
+                  </Eyebrow>
                   <h2>{laneMeta.label}</h2>
                   <p>{laneMeta.job}</p>
                 </div>
@@ -171,7 +234,9 @@ export function SetupScreen() {
               <div className="match-brief__note">
                 <Sparkles size={14} />
                 <span>
-                  Ban suggestions also use your other lane pools, so one-trick counters get priority even before picks.
+                  {partySize > 1
+                    ? 'Suggestions for this member are cross-referenced with the rest of the squad’s pools and locked picks.'
+                    : 'Ban suggestions also use your other lane pools, so one-trick counters get priority even before picks.'}
                 </span>
               </div>
 
@@ -183,7 +248,13 @@ export function SetupScreen() {
                 </div>
               </div>
 
-              <Button size="lg" full onClick={() => startDraft(laneMeta.id)} icon={<Swords size={18} />} iconRight={<ArrowRight size={16} />}>
+              {partySize > 1 && !selfLane && (
+                <div className="match-brief__warning">
+                  <Crosshair size={13} /> Select your own lane first — friends can be assigned after.
+                </div>
+              )}
+
+              <Button size="lg" full onClick={start} disabled={!selfLane} icon={<Swords size={18} />} iconRight={<ArrowRight size={16} />}>
                 Let’s play rank
               </Button>
               <div className="match-brief__quick">
@@ -192,13 +263,13 @@ export function SetupScreen() {
                 <span><Crosshair size={13} /> 5s pick solver</span>
               </div>
               <button type="button" className="text-link match-brief__edit" onClick={() => dispatch({ type: 'SET_SCREEN', screen: 'onboarding' })}>
-                <Pencil size={13} /> Edit permanent hero pool
+                <Pencil size={13} /> Edit permanent profile
               </button>
             </>
           ) : (
             <div className="match-brief__placeholder">
               <span className="match-brief__placeholder-icon"><Crosshair size={30} /></span>
-              <h2>Select your lane</h2>
+              <h2>{activeMember.isSelf ? 'Select your lane' : `Select ${activeMember.name}'s lane`}</h2>
               <p>Your three core heroes, plus any optional picks, become the candidates the pick solver considers.</p>
               <div className="match-brief__placeholder-pills">
                 {LANES.map((item) => (

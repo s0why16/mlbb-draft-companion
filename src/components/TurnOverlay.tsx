@@ -11,11 +11,13 @@ import {
   ScanLine,
   Sparkles,
   Timer,
+  Users,
   WandSparkles,
 } from 'lucide-react';
 import type { Evaluation } from '../types';
 import { LANE_BY_ID } from '../data/meta';
 import { formatPercent, metaGrade } from '../lib/engine';
+import { SELF_MEMBER_ID, type SquadMember } from '../lib/party';
 import { cn } from '../lib/cn';
 import { useLaneColor } from '../lib/lane';
 import { Modal } from './Modal';
@@ -26,9 +28,9 @@ import { PatchBadge } from './PatchBadge';
 const SCAN_STEPS = [
   { at: 0, label: 'Reading the live board', detail: 'Counting locked picks and bans' },
   { at: 1.1, label: 'Mapping counter chains', detail: 'Hero matchups, flex lanes, enemy tags' },
-  { at: 2.2, label: 'Weighting your mastery', detail: 'Win rate, sample size, comfort index' },
+  { at: 2.2, label: 'Weighting mastery', detail: 'Win rate, sample size, comfort index' },
   { at: 3.3, label: 'Checking composition gaps', detail: 'Frontline, CC, damage mix, scaling' },
-  { at: 4.3, label: 'Preparing two options', detail: 'Ranking the best available locks' },
+  { at: 4.3, label: 'Checking party synergy', detail: 'Pool combos, locked pairs, lane affinity' },
 ];
 
 export function TurnOverlay({
@@ -37,12 +39,18 @@ export function TurnOverlay({
   evaluation,
   onLock,
   disabled,
+  members,
+  activeMemberId,
+  onMemberChange,
 }: {
   open: boolean;
   onClose: () => void;
   evaluation: Evaluation;
   onLock: (heroId: string) => void;
   disabled?: boolean;
+  members: SquadMember[];
+  activeMemberId: string;
+  onMemberChange: (id: string) => void;
 }) {
   const [phase, setPhase] = useState<'scanning' | 'results'>('scanning');
   const laneColor = useLaneColor();
@@ -50,6 +58,10 @@ export function TurnOverlay({
   const startedAt = useRef(0);
   const snapshot = useMemo(() => evaluation.suggestions.slice(0, 2), [evaluation]);
   const lane = evaluation.lane;
+  const member = members.find((item) => item.id === activeMemberId) ?? members[0];
+  const isSelf = !member || member.isSelf;
+  const memberName = member?.name ?? 'You';
+  const partySize = members.length;
 
   useEffect(() => {
     if (!open) return;
@@ -68,7 +80,7 @@ export function TurnOverlay({
       window.clearInterval(tick);
       window.clearTimeout(finish);
     };
-  }, [open]);
+  }, [open, activeMemberId]);
 
   const reveal = () => {
     setElapsed(5);
@@ -80,6 +92,33 @@ export function TurnOverlay({
   const remaining = Math.max(0, 5 - elapsed);
   const confidence = Math.round(evaluation.confidence * 100);
   const knownTotal = evaluation.ally.known + evaluation.enemy.known;
+  const lockLabel = isSelf ? 'Lock my pick' : `Lock for ${memberName}`;
+
+  const switcher = partySize > 1 && (
+    <div className="turn-members" role="tablist" aria-label="Party member">
+      {members.map((item, index) => {
+        const active = item.id === activeMemberId;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            className={cn('turn-member-btn', active && 'is-active', item.isSelf && 'turn-member-btn--self')}
+            onClick={() => onMemberChange(item.id)}
+          >
+            <span className="turn-member-btn__index">{item.isSelf ? <Crosshair size={11} /> : `P${index}`}</span>
+            <span className="turn-member-btn__name">{item.isSelf ? 'Your pick' : item.name}</span>
+            <span className="turn-member-btn__lane">
+              {evaluation.party?.members.find((entry) => entry.id === item.id)?.lane
+                ? LANE_BY_ID[evaluation.party.members.find((entry) => entry.id === item.id)!.lane!].short
+                : '—'}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
 
   return (
     <Modal open={open} onClose={onClose} className="turn-modal" labelledBy="turn-title" hideClose>
@@ -90,9 +129,9 @@ export function TurnOverlay({
               <Eyebrow>
                 <span className="live-dot" /> AI turn solver
               </Eyebrow>
-              <h2 id="turn-title">It's my turn.</h2>
+              <h2 id="turn-title">{isSelf ? "It's my turn." : `Friend's pick.`}</h2>
               <p>
-                {lane ? `${LANE_BY_ID[lane].label} pool` : 'Lane pool'} · {knownTotal} locked {knownTotal === 1 ? 'pick' : 'picks'} ·{' '}
+                {memberName} · {lane ? `${LANE_BY_ID[lane].label} pool` : 'Lane pool'} · {knownTotal} locked {knownTotal === 1 ? 'pick' : 'picks'} ·{' '}
                 {evaluation.suggestions.length} candidates
               </p>
             </div>
@@ -103,6 +142,8 @@ export function TurnOverlay({
               <button type="button" className="turn-scan__close" onClick={onClose}>Cancel</button>
             </div>
           </div>
+
+          {switcher}
 
           <div className="turn-scan__stage">
             <div className="scan-visual" style={{ '--scan-progress': `${progress}%` } as React.CSSProperties}>
@@ -119,7 +160,7 @@ export function TurnOverlay({
               <span className="scan-visual__chip scan-visual__chip--one">COMFORT</span>
               <span className="scan-visual__chip scan-visual__chip--two">COUNTERS</span>
               <span className="scan-visual__chip scan-visual__chip--three">COMP</span>
-              <span className="scan-visual__chip scan-visual__chip--four">PATCH</span>
+              <span className="scan-visual__chip scan-visual__chip--four">{partySize > 1 ? 'SYNERGY' : 'PATCH'}</span>
             </div>
 
             <div className="scan-log">
@@ -151,13 +192,25 @@ export function TurnOverlay({
               <Eyebrow>
                 <span className="live-dot" /> Evaluation complete
               </Eyebrow>
-              <h2 id="turn-title">Two options. One lock.</h2>
+              <h2 id="turn-title">{isSelf ? 'Your pick. Two options. One lock.' : `${memberName}'s pick. Two options. One lock.`}</h2>
               <p>
-                {lane ? `${LANE_BY_ID[lane].label} · ` : ''}{snapshot.length ? 'Ranked by draft fit, comfort, and matchup' : 'No candidates available'} · {confidence}% board confidence
+                {memberName} · {lane ? `${LANE_BY_ID[lane].label} · ` : ''}
+                {snapshot.length ? 'Ranked by draft fit, comfort, matchup, and party synergy' : 'No candidates available'} · {confidence}% board confidence
               </p>
             </div>
             <button type="button" className="turn-scan__close" onClick={onClose}>Close</button>
           </div>
+
+          {switcher}
+
+          {evaluation.party && evaluation.party.size > 1 && (
+            <div className="turn-party-strip">
+              <span className="turn-party-strip__chip"><Users size={12} /> {evaluation.party.label} · ×{evaluation.party.coordination.toFixed(2)}</span>
+              <span className="turn-party-strip__chip">Synergy {evaluation.party.synergy}</span>
+              <span className="turn-party-strip__chip">Party edge +{evaluation.party.edge.toFixed(1)}%</span>
+              {evaluation.party.combos.length > 0 && <span className="turn-party-strip__combo">{evaluation.party.combos.join(' · ')}</span>}
+            </div>
+          )}
 
           {snapshot.length ? (
             <>
@@ -169,7 +222,7 @@ export function TurnOverlay({
                     className={cn('turn-quick-lock__btn', index === 0 && 'is-primary')}
                     onClick={() => onLock(option.hero.id)}
                     disabled={disabled}
-                    aria-label={`Lock ${option.hero.name}, projected ${formatPercent(option.projectedWinRate)} win rate`}
+                    aria-label={`Lock ${option.hero.name} for ${memberName}, projected ${formatPercent(option.projectedWinRate)} win rate`}
                   >
                     <HeroPortrait hero={option.hero} size={30} />
                     <span className="turn-quick-lock__copy">
@@ -217,7 +270,7 @@ export function TurnOverlay({
                       iconRight={<ArrowRight size={14} />}
                       className="verdict-card__lock"
                     >
-                      {disabled ? 'All ally slots filled' : 'Lock & transfer'}
+                      {disabled ? 'All ally slots filled' : lockLabel}
                     </Button>
 
                     <div className="verdict-card__comfort">
@@ -255,13 +308,13 @@ export function TurnOverlay({
             <div className="turn-empty">
               <Crosshair size={32} />
               <h3>No candidates in this lane</h3>
-              <p>Add heroes to your {lane ? LANE_BY_ID[lane].label : 'lane'} pool, or clear a locked pick to bring one back.</p>
+              <p>Add heroes to {isSelf ? 'your' : `${memberName}'s`} {lane ? LANE_BY_ID[lane].label : 'lane'} pool, or clear a locked pick to bring one back.</p>
               <Button variant="secondary" onClick={onClose}>Back to board</Button>
             </div>
           )}
 
           <div className="turn-results__foot">
-            <span><WandSparkles size={13} /> Locking transfers the hero to the next open ally slot and marks it as your pick.</span>
+            <span><WandSparkles size={13} /> Locking assigns the hero to the next open ally slot and marks it for {isSelf ? 'you' : memberName}.</span>
             <span className="turn-results__board">
               Board: {evaluation.ally.known} vs {evaluation.enemy.known} picks <ChevronRight size={12} /> {formatPercent(evaluation.winRate)}
             </span>

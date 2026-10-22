@@ -1,6 +1,19 @@
 import { HEROES, HERO_BY_ID } from '../data/heroes';
 import { LANE_BY_ID } from '../data/meta';
 import { buildMetaLens, lensHeroScore, type MetaLens } from './metaLens';
+import {
+  coordinationForSize,
+  memberById,
+  memberLane,
+  memberPool,
+  memberSlot,
+  memberStatForHero,
+  partyLabel,
+  partyStatForHero,
+  squadMembers,
+  SELF_MEMBER_ID,
+  type SquadMember,
+} from './party';
 import type {
   Draft,
   Evaluation,
@@ -8,6 +21,8 @@ import type {
   HeroStat,
   HeroTag,
   Lane,
+  PartyMemberStat,
+  PartySummary,
   Profile,
   Recommendation,
   TeamAnalysis,
@@ -80,6 +95,287 @@ export function statForHero(profile: Profile | null, heroId: string): HeroStat |
 export function poolForLane(profile: Profile | null, lane: Lane | null): HeroStat[] {
   if (!profile || !lane) return [];
   return profile.pools[lane] ?? [];
+}
+
+/* ------------------------------------------------------------------ */
+/* Party coordination                                                  */
+/* ------------------------------------------------------------------ */
+
+const TAG_SYNERGY_PAIRS: { a: HeroTag; b: HeroTag; weight: number }[] = [
+  { a: 'engage', b: 'burst', weight: 1.2 },
+  { a: 'engage', b: 'heavyCc', weight: 1.1 },
+  { a: 'heavyCc', b: 'burst', weight: 1.0 },
+  { a: 'heavyCc', b: 'poke', weight: 0.8 },
+  { a: 'peel', b: 'scaling', weight: 1.0 },
+  { a: 'dive', b: 'backlineDive', weight: 1.0 },
+  { a: 'earlyPressure', b: 'earlyPressure', weight: 0.9 },
+  { a: 'tanky', b: 'scaling', weight: 0.9 },
+  { a: 'poke', b: 'poke', weight: 0.8 },
+  { a: 'mobility', b: 'backlineDive', weight: 0.8 },
+  { a: 'sustain', b: 'tanky', weight: 0.8 },
+  { a: 'shield', b: 'dive', weight: 0.9 },
+  { a: 'vision', b: 'splitPush', weight: 0.7 },
+  { a: 'antiHeal', b: 'burst', weight: 0.7 },
+  { a: 'trueDamage', b: 'heavyCc', weight: 0.7 },
+  { a: 'execute', b: 'burst', weight: 0.8 },
+  { a: 'waveClear', b: 'splitPush', weight: 0.7 },
+  { a: 'immune', b: 'dive', weight: 0.7 },
+];
+
+const LANE_PAIR_WEIGHTS: Record<string, number> = {
+  'roam|gold': 1.2,
+  'roam|mid': 1.15,
+  'jungle|mid': 1.15,
+  'jungle|roam': 1.12,
+  'exp|jungle': 1.06,
+  'exp|roam': 1.05,
+  'gold|mid': 1.02,
+};
+
+function lanePairWeight(a: Lane | null, b: Lane | null): number {
+  if (!a || !b) return 1;
+  if (a === b) return 0.92;
+  return LANE_PAIR_WEIGHTS[`${a}|${b}`] ?? LANE_PAIR_WEIGHTS[`${b}|${a}`] ?? 1;
+}
+
+/**
+ * How well two heroes play together. Direct data edges are the strongest
+ * signal; tag pairs cover the common MLBB combo archetypes.
+ */
+export function heroPairValue(a: Hero, b: Hero): number {
+  let value = 0;
+  if (a.synergies.includes(b.id) || b.synergies.includes(a.id)) value += 2.4;
+  const aTags = new Set(a.tags);
+  const bTags = new Set(b.tags);
+  for (const pair of TAG_SYNERGY_PAIRS) {
+    if ((aTags.has(pair.a) && bTags.has(pair.b)) || (aTags.has(pair.b) && bTags.has(pair.a))) {
+      value += pair.weight * 1.35;
+    }
+  }
+  return value;
+}
+
+export interface PartyLikelyPick {
+  hero: Hero;
+  stat?: HeroStat;
+  weight: number;
+}
+
+export interface PartyContext {
+  members: SquadMember[];
+  size: number;
+  coordination: number;
+  lanes: Record<string, Lane | null>;
+  slots: Record<string, number | null>;
+  locked: Record<string, Hero | null>;
+  likely: Record<string, PartyLikelyPick[]>;
+  enemy: Hero[];
+}
+
+export function buildPartyContext(profile: Profile | null, draft: Draft): PartyContext | null {
+  if (!profile) return null;
+  const members = squadMembers(profile);
+  if (!members.length) return null;
+  const lanes: Record<string, Lane | null> = {};
+  const slots: Record<string, number | null> = {};
+  const locked: Record<string, Hero | null> = {};
+  const likely: Record<string, PartyLikelyPick[]> = {};
+
+  for (const member of members) {
+    const lane = memberLane(draft, member);
+    lanes[member.id] = lane;
+    const slot = memberSlot(draft, member);
+    slots[member.id] = slot;
+    const slotHero = slot != null ? heroById(draft.picks.ally[slot]) ?? null : null;
+    const fallbackHero = member.isSelf ? heroById(draft.myHeroId) ?? null : null;
+    locked[member.id] = slotHero ?? fallbackHero;
+
+    const ranked = memberPool(member, lane)
+      .map((stat) => {
+        const hero = heroById(stat.heroId);
+        if (!hero) return null;
+        const comfort = comfortForHero(stat)?.score ?? hero.meta;
+        return { hero, stat, comfort };
+      })
+      .filter((entry): entry is { hero: Hero; stat: HeroStat; comfort: number } => Boolean(entry))
+      .sort((a, b) => b.comfort - a.comfort)
+      .slice(0, 3);
+    const total = ranked.reduce((sum, entry) => sum + entry.comfort, 0) || 1;
+    likely[member.id] = ranked.map((entry) => ({
+      hero: entry.hero,
+      stat: entry.stat,
+      weight: 0.55 + (entry.comfort / total) * 0.45,
+    }));
+  }
+
+  const enemy = draft.picks.enemy.map(heroById).filter((hero): hero is Hero => Boolean(hero));
+  return { members, size: members.length, coordination: coordinationForSize(members.length), lanes, slots, locked, likely, enemy };
+}
+
+export interface PartySynergyResult {
+  raw: number;
+  rating: number;
+  reasons: string[];
+  partners: string[];
+}
+
+/**
+ * Party synergy for a candidate pick: direct edges with locked teammates,
+ * tag-pair combos with their likely comfort picks, and counter coverage for
+ * enemy heroes that punish a teammate's pool.
+ */
+export function partySynergyForHero(hero: Hero, memberId: string, context: PartyContext | null): PartySynergyResult {
+  if (!context || context.size <= 1) return { raw: 0, rating: 50, reasons: [], partners: [] };
+  const heroLane = context.lanes[memberId] ?? null;
+  let raw = 0;
+  const contributions: { name: string; value: number; locked: boolean; lane: Lane | null }[] = [];
+
+  for (const other of context.members) {
+    if (other.id === memberId) continue;
+    const otherLane = context.lanes[other.id] ?? null;
+    const affinity = lanePairWeight(heroLane, otherLane);
+    const lockedHero = context.locked[other.id];
+    if (lockedHero) {
+      const value = heroPairValue(hero, lockedHero) * affinity;
+      raw += value;
+      if (value > 0.2) contributions.push({ name: other.name, value, locked: true, lane: otherLane });
+      continue;
+    }
+    const picks = context.likely[other.id] ?? [];
+    let poolValue = 0;
+    for (const pick of picks) poolValue += heroPairValue(hero, pick.hero) * pick.weight;
+    poolValue *= affinity;
+    raw += poolValue;
+    if (poolValue > 0.5) contributions.push({ name: other.name, value: poolValue, locked: false, lane: otherLane });
+  }
+
+  let counterCoverage = 0;
+  for (const threat of context.enemy) {
+    const threatensTeammate = context.members.some((other) => {
+      if (other.id === memberId) return false;
+      const targets = [context.locked[other.id], ...(context.likely[other.id] ?? []).map((pick) => pick.hero)].filter(
+        (target): target is Hero => Boolean(target),
+      );
+      return targets.some((target) => target.counters.includes(threat.id) || target.counteredBy.includes(threat.id));
+    });
+    if (threatensTeammate && hero.counters.includes(threat.id)) counterCoverage += 1.4;
+  }
+  raw += counterCoverage;
+  raw *= context.coordination;
+
+  const rating = clamp(50 + raw * 4.2, 0, 100);
+  contributions.sort((a, b) => b.value - a.value);
+  const reasons: string[] = [];
+  for (const contribution of contributions.slice(0, 2)) {
+    const laneLabel = contribution.lane ? LANE_BY_ID[contribution.lane].short : 'pool';
+    reasons.push(
+      contribution.locked
+        ? `Synergy with ${contribution.name} (locked) in ${laneLabel}.`
+        : `Pairs with ${contribution.name}'s ${laneLabel} pool.`,
+    );
+  }
+  if (counterCoverage > 0) reasons.push('Covers counters to a teammate’s pool.');
+  return { raw, rating, reasons, partners: contributions.map((entry) => entry.name) };
+}
+
+export function teamSynergyRating(heroes: Hero[], context: PartyContext | null): number {
+  if (!heroes.length) return 50;
+  if (heroes.length < 2) return 52;
+  let raw = 0;
+  let pairs = 0;
+  for (let i = 0; i < heroes.length; i++) {
+    for (let j = i + 1; j < heroes.length; j++) {
+      raw += heroPairValue(heroes[i], heroes[j]);
+      pairs += 1;
+    }
+  }
+  const average = pairs ? raw / pairs : 0;
+  const coordination = context && context.size > 1 ? context.coordination : 1;
+  return clamp(50 + average * 5.5 * coordination, 0, 100);
+}
+
+export function partyEdgeForContext(context: PartyContext | null): number {
+  if (!context || context.size <= 1) return 0;
+  return clamp((context.coordination - 1) * 4, 0, 2.4);
+}
+
+export function buildPartyCombos(context: PartyContext): string[] {
+  const entries = context.members
+    .map((member) => ({
+      member,
+      hero: context.locked[member.id] ?? context.likely[member.id]?.[0]?.hero ?? null,
+    }))
+    .filter((entry): entry is { member: SquadMember; hero: Hero } => Boolean(entry.hero));
+  const combos: string[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    for (let j = i + 1; j < entries.length; j++) {
+      const value = heroPairValue(entries[i].hero, entries[j].hero);
+      if (value >= 1.5) combos.push(`${entries[i].hero.name} + ${entries[j].hero.name}`);
+    }
+  }
+  return unique(combos).slice(0, 3);
+}
+
+function buildPartySummary(profile: Profile, draft: Draft, context: PartyContext | null, ally: Hero[]): PartySummary | null {
+  if (!context || context.size <= 1) return null;
+  const used = new Set<string>(
+    [...draft.bans.ally, ...draft.bans.enemy, ...draft.picks.ally, ...draft.picks.enemy].filter(Boolean) as string[],
+  );
+  const members: PartyMemberStat[] = context.members.map((member) => {
+    const lane = context.lanes[member.id] ?? null;
+    const slot = context.slots[member.id] ?? null;
+    const hero = context.locked[member.id] ?? null;
+    const stat = hero ? memberStatForHero(member, hero.id) : undefined;
+    const comfort = comfortForHero(stat);
+    const status: PartyMemberStat['status'] = hero ? 'locked' : lane ? 'waiting' : 'unassigned';
+    let bestPick: PartyMemberStat['bestPick'] = null;
+    if (!hero && lane) {
+      bestPick =
+        memberPool(member, lane)
+          .map((entry) => {
+            const candidate = heroById(entry.heroId);
+            if (!candidate || used.has(candidate.id)) return null;
+            const candidateComfort = comfortForHero(entry);
+            const synergy = partySynergyForHero(candidate, member.id, context);
+            const score =
+              candidate.meta * 0.3 +
+              (candidateComfort?.score ?? candidate.meta) * 0.3 +
+              laneFit(candidate, lane) * 0.2 +
+              synergy.rating * 0.2;
+            return {
+              heroId: candidate.id,
+              name: candidate.name,
+              score,
+              reason: synergy.reasons[0] ?? `${Math.round(candidateComfort?.score ?? candidate.meta)} comfort`,
+            };
+          })
+          .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+          .sort((a, b) => b.score - a.score)[0] ?? null;
+    }
+    return {
+      id: member.id,
+      name: member.name,
+      isSelf: member.isSelf,
+      lane,
+      hero,
+      slot,
+      comfort: comfort?.score ?? null,
+      matches: comfort?.matches ?? null,
+      winRate: comfort?.rawWinRate ?? null,
+      status,
+      bestPick,
+    };
+  });
+
+  return {
+    size: context.size,
+    label: partyLabel(context.size),
+    coordination: context.coordination,
+    synergy: Math.round(teamSynergyRating(ally, context)),
+    edge: partyEdgeForContext(context),
+    members,
+    combos: buildPartyCombos(context),
+  };
 }
 
 function relationshipsFor(
@@ -278,6 +574,7 @@ export function analyzeTeam(
   side: 'ally' | 'enemy',
   profile: Profile | null,
   lens: MetaLens = buildMetaLens(profile),
+  context: PartyContext | null = null,
 ): TeamAnalysis {
   const metrics = computeMetrics(heroes);
   const warnings = teamWarnings(heroes, metrics);
@@ -294,13 +591,15 @@ export function analyzeTeam(
     heroes.reduce((sum, hero) => {
       const bias = lensHeroScore(hero, lens);
       if (side === 'enemy') return sum + globalWinRatePower(hero) + bias;
-      const comfort = comfortForHero(statForHero(profile, hero.id));
+      const comfort = comfortForHero(partyStatForHero(profile, hero.id));
       return sum + (comfort ? comfort.score * 0.58 + hero.meta * 0.42 : hero.meta) + bias;
     }, 0),
   );
   const flex = padded(heroes.reduce((sum, hero) => sum + (hero.lanes.length >= 2 ? 65 : 50), 0));
   const quality = compositionQuality(metrics, warnings, heroes.length, lens);
-  const power = clamp(meta * 0.44 + sideStrength * 0.18 + quality * 0.29 + flex * 0.09);
+  const synergy = side === 'ally' ? teamSynergyRating(heroes, context) : teamSynergyRating(heroes, null);
+  const synergyTerm = side === 'ally' && context && context.size > 1 ? (synergy - 50) * 0.06 : 0;
+  const power = clamp(meta * 0.44 + sideStrength * 0.18 + quality * 0.29 + flex * 0.09 + synergyTerm);
 
   return {
     known: heroes.length,
@@ -311,6 +610,7 @@ export function analyzeTeam(
     warnings,
     damage: damageProfile(heroes),
     picks: heroes,
+    synergy,
   };
 }
 
@@ -332,6 +632,7 @@ function projectWinRate(
   matchup: ReturnType<typeof relationshipsFor>,
   enemyMatchup: ReturnType<typeof relationshipsFor>,
   lens: MetaLens,
+  partyEdge = 0,
 ): { winRate: number; confidence: number } {
   if (!ally.length && !enemy.length) return { winRate: 50, confidence: 0.25 };
   const minKnown = Math.min(ally.length, enemy.length);
@@ -341,7 +642,7 @@ function projectWinRate(
     const patchBoost = ally.filter((hero) => hero.patch?.status === 'buff').length * 0.6;
     const nerfDrag = ally.filter((hero) => hero.patch?.status === 'nerf').length * 0.4;
     return {
-      winRate: clamp(50 + (metaAvg - 55) * 0.12 + (ally.length - 1) * 1.1 + patchBoost - nerfDrag, 46, 61),
+      winRate: clamp(50 + (metaAvg - 55) * 0.12 + (ally.length - 1) * 1.1 + patchBoost - nerfDrag + partyEdge, 46, partyEdge > 0 ? 63 : 61),
       confidence: 0.3,
     };
   }
@@ -356,7 +657,7 @@ function projectWinRate(
     0.035 *
     lens.compositionWeight;
   return {
-    winRate: clamp(50 + rawEdge * coverage + styleEdge * coverage, 27, 73),
+    winRate: clamp(50 + rawEdge * coverage + styleEdge * coverage + partyEdge * coverage, 27, 73),
     confidence: clamp(0.25 + 0.75 * (minKnown / 5), 0.25, 1),
   };
 }
@@ -364,19 +665,27 @@ function projectWinRate(
 export function evaluateDraft(
   draft: Draft,
   profile: Profile | null,
-  options: { includeSuggestions?: boolean } = {},
+  options: { includeSuggestions?: boolean; memberId?: string | null } = {},
 ): Evaluation {
   const lens = buildMetaLens(profile);
+  const context = buildPartyContext(profile, draft);
+  const requestedMember = options.memberId ?? draft.activeMemberId;
+  const activeMember = memberById(profile, requestedMember) ?? memberById(profile, SELF_MEMBER_ID) ?? null;
+  const activeMemberId = activeMember?.id ?? SELF_MEMBER_ID;
+  const activeLane = memberLane(draft, activeMember) ?? draft.lane;
+
   const { ally, enemy } = boardHeroes(draft);
-  const allyAnalysis = analyzeTeam(ally, 'ally', profile, lens);
-  const enemyAnalysis = analyzeTeam(enemy, 'enemy', profile, lens);
+  const allyAnalysis = analyzeTeam(ally, 'ally', profile, lens, context);
+  const enemyAnalysis = analyzeTeam(enemy, 'enemy', profile, lens, null);
 
   const matchup = relationshipsFor(ally, enemy);
   const enemyMatchup = relationshipsFor(enemy, ally);
-  const { winRate, confidence } = projectWinRate(ally, enemy, allyAnalysis, enemyAnalysis, matchup, enemyMatchup, lens);
+  const partyEdge = partyEdgeForContext(context);
+  const { winRate, confidence } = projectWinRate(ally, enemy, allyAnalysis, enemyAnalysis, matchup, enemyMatchup, lens, partyEdge);
 
   const nextSlot = draft.picks.ally.findIndex((id) => !id);
   const myHero =
+    (activeMember && !activeMember.isSelf ? context?.locked[activeMember.id] : undefined) ??
     heroById(draft.myHeroId) ??
     (draft.mySlot != null ? heroById(draft.picks.ally[draft.mySlot]) : undefined) ??
     undefined;
@@ -389,7 +698,10 @@ export function evaluateDraft(
   else if (edge <= -6) headline = 'Draft disadvantage';
   else if (edge <= -2.5) headline = 'Slight deficit';
 
-  const suggestions = options.includeSuggestions === false ? [] : buildSuggestions(draft, profile, winRate, nextSlot, ally, enemy, lens);
+  const suggestions =
+    options.includeSuggestions === false
+      ? []
+      : buildSuggestions(draft, profile, winRate, nextSlot, ally, enemy, lens, activeMember, context);
   return {
     ally: allyAnalysis,
     enemy: enemyAnalysis,
@@ -398,15 +710,17 @@ export function evaluateDraft(
     edge,
     headline,
     suggestions,
-    lane: draft.lane,
+    lane: activeLane,
     myHero: myHero ?? null,
     metaLabel: lens.label,
+    activeMemberId,
+    party: profile ? buildPartySummary(profile, draft, context, ally) : null,
   };
 }
 
-function poolPriority(profile: Profile | null, lane: Lane | null, heroId: string): number {
-  if (!profile || !lane) return 0;
-  const index = profile.pools[lane].findIndex((entry) => entry.heroId === heroId);
+function poolPriority(member: SquadMember | null, lane: Lane | null, heroId: string): number {
+  if (!member || !lane) return 0;
+  const index = member.pools[lane].findIndex((entry) => entry.heroId === heroId);
   if (index === -1) return -2;
   return 2.4 - index * 0.55;
 }
@@ -419,10 +733,13 @@ function buildSuggestions(
   ally: Hero[],
   enemy: Hero[],
   lens: MetaLens,
+  member: SquadMember | null,
+  context: PartyContext | null,
 ): Recommendation[] {
-  const lane = draft.lane;
+  const lane = memberLane(draft, member) ?? draft.lane;
+  const memberName = member?.isSelf === false ? member.name : null;
   const used = new Set<string>([...draft.bans.ally, ...draft.bans.enemy, ...draft.picks.ally, ...draft.picks.enemy].filter(Boolean) as string[]);
-  const pool = poolForLane(profile, lane);
+  const pool = memberPool(member, lane);
   const candidates: { hero: Hero; stat?: HeroStat }[] = [];
 
   for (const entry of pool) {
@@ -438,7 +755,7 @@ function buildSuggestions(
   }
 
   const recommendations = candidates.slice(0, 8).map(({ hero, stat }) => {
-    const simulated = nextSlot === -1 ? null : simulateWithCandidate(draft, hero.id, profile, lens);
+    const simulated = nextSlot === -1 ? null : simulateWithCandidate(draft, hero.id, profile, lens, context);
     const projected = simulated?.winRate ?? baseWinRate;
     const delta = projected - baseWinRate;
     const comfort = comfortForHero(stat);
@@ -448,14 +765,16 @@ function buildSuggestions(
     const draftImpact = clamp(50 + delta * 14, 0, 100);
     const comfortTerm = comfort?.score ?? hero.meta;
     const lensScore = lensHeroScore(hero, lens);
+    const synergy = member ? partySynergyForHero(hero, member.id, context) : { raw: 0, rating: 50, reasons: [], partners: [] };
     const score =
       hero.meta * 0.31 * lens.metaWeight +
       comfortTerm * 0.27 * lens.comfortWeight +
       fit * 0.15 +
       draftImpact * 0.19 * lens.counterWeight +
-      poolPriority(profile, lane, hero.id) +
+      poolPriority(member, lane, hero.id) +
       patchScore +
-      lensScore;
+      lensScore +
+      synergy.raw * 0.55;
     const reasons: string[] = [];
     const risks: string[] = [];
 
@@ -463,9 +782,18 @@ function buildSuggestions(
       reasons.push(`${comfort.rawWinRate}% WR across ${comfort.matches} matches · comfort ${Math.round(comfort.score)}`);
       if (comfort.matches < 12) risks.push(`Small sample (${comfort.matches} games) — comfort is based on limited data.`);
     } else {
-      reasons.push(isPool ? 'In your lane pool · no match data supplied' : 'Meta fallback · add this hero to your pool for personal weighting');
+      reasons.push(
+        isPool
+          ? memberName
+            ? `In ${memberName}'s lane pool · no match data supplied`
+            : 'In your lane pool · no match data supplied'
+          : memberName
+            ? `Meta fallback · add this hero to ${memberName}'s pool for personal weighting`
+            : 'Meta fallback · add this hero to your pool for personal weighting',
+      );
     }
 
+    for (const partyReason of synergy.reasons) reasons.push(partyReason);
     if (delta >= 0.8) reasons.push(`Improves the projected draft by +${delta.toFixed(1)}%.`);
     if (hero.patch?.status === 'buff') reasons.push('Buffed in 2.2.16 — the current patch favours this pick.');
     if (hero.patch?.status === 'nerf') risks.push('Nerfed in 2.2.16a — still viable, but a notch below its peak.');
@@ -504,6 +832,7 @@ function buildSuggestions(
 
     const priority = (reason: string) => {
       if (reason.startsWith('Counters')) return 0;
+      if (reason.startsWith('Synergy with') || reason.startsWith('Pairs with') || reason.startsWith('Covers counters')) return 1;
       if (reason.startsWith('Synergies')) return 1;
       if (reason.startsWith('Improves')) return 2;
       if (reason.startsWith('Adds') || reason.startsWith('Gives') || reason.startsWith('Finally') || reason.startsWith('Has the') || reason.startsWith('Brings')) return 3;
@@ -545,16 +874,22 @@ interface Simulated {
   enemyAnalysis: TeamAnalysis;
 }
 
-function simulateWithCandidate(draft: Draft, candidateId: string | null, profile: Profile | null, lens: MetaLens): Simulated {
+function simulateWithCandidate(
+  draft: Draft,
+  candidateId: string | null,
+  profile: Profile | null,
+  lens: MetaLens,
+  context: PartyContext | null = null,
+): Simulated {
   const ally = draft.picks.ally.map(heroById).filter((h): h is Hero => Boolean(h));
   const enemy = draft.picks.enemy.map(heroById).filter((h): h is Hero => Boolean(h));
   const candidate = heroById(candidateId);
   if (candidate && !ally.some((h) => h.id === candidate.id)) ally.push(candidate);
-  const allyAnalysis = analyzeTeam(ally, 'ally', profile, lens);
-  const enemyAnalysis = analyzeTeam(enemy, 'enemy', profile, lens);
+  const allyAnalysis = analyzeTeam(ally, 'ally', profile, lens, context);
+  const enemyAnalysis = analyzeTeam(enemy, 'enemy', profile, lens, null);
   const matchup = relationshipsFor(ally, enemy);
   const enemyMatchup = relationshipsFor(enemy, ally);
-  const projection = projectWinRate(ally, enemy, allyAnalysis, enemyAnalysis, matchup, enemyMatchup, lens);
+  const projection = projectWinRate(ally, enemy, allyAnalysis, enemyAnalysis, matchup, enemyMatchup, lens, partyEdgeForContext(context));
   return {
     winRate: projection.winRate,
     matchup,
@@ -578,14 +913,44 @@ export function suggestBans(profile: Profile | null, draft: Draft, limit = 5): B
       for (const entry of profile.pools[lane]) ownPool.add(entry.heroId);
     }
   }
+  const context = buildPartyContext(profile, draft);
+  const activeMember = memberById(profile, draft.activeMemberId) ?? memberById(profile, SELF_MEMBER_ID);
+  const activeLane = context && activeMember ? context.lanes[activeMember.id] ?? draft.lane : draft.lane;
   // Do not suggest banning the lane you are about to play. Off-lane comfort is
   // fair game because you cannot play it in this match.
-  const activePool = new Set<string>(draft.lane && profile ? profile.pools[draft.lane].map((entry) => entry.heroId) : []);
+  const activePool = new Set<string>(activeLane && profile ? profile.pools[activeLane].map((entry) => entry.heroId) : []);
   const relevantPool = activePool.size ? activePool : ownPool;
   const lens = buildMetaLens(profile);
 
+  // Friend pools become secondary ban context. Solo keeps the original scoring.
+  const friendPools: { name: string; lane: Lane | null; ids: string[]; weight: number }[] = [];
+  if (context && context.size > 1) {
+    for (const member of context.members) {
+      if (member.isSelf) continue;
+      const lane = context.lanes[member.id] ?? member.preferredLane ?? null;
+      const pool = memberPool(member, lane);
+      if (!pool.length) continue;
+      friendPools.push({ name: member.name, lane, ids: pool.map((entry) => entry.heroId), weight: 0.7 });
+    }
+  }
+
   const suggestions = HEROES.filter((hero) => !used.has(hero.id) && !activePool.has(hero.id)).map((hero) => {
     const poolCounters = [...relevantPool].filter((id) => hero.counters.includes(id)).length;
+    let partyCounterMembers = 0;
+    let partyCounterWeight = 0;
+    for (const pool of friendPools) {
+      const count = pool.ids.filter((id) => hero.counters.includes(id)).length;
+      if (count) partyCounterMembers += 1;
+      partyCounterWeight += count * pool.weight;
+    }
+    let comboBreak = 0;
+    if (context && context.size > 1) {
+      comboBreak = context.members.filter((member) => {
+        if (member.id === activeMember?.id) return false;
+        const targets = context.locked[member.id] ? [context.locked[member.id]!] : (context.likely[member.id] ?? []).map((pick) => pick.hero);
+        return targets.some((target) => hero.counters.includes(target.id));
+      }).length;
+    }
     const flex = hero.lanes.length >= 2 ? 5 : 0;
     const patch = hero.patch?.status === 'buff' ? 4 : hero.patch?.status === 'nerf' ? -2 : 0;
     const difficultyFactor = (hero.attributes.difficulty - 50) * lens.banWeights.difficulty * 0.08;
@@ -596,12 +961,20 @@ export function suggestBans(profile: Profile | null, draft: Draft, limit = 5): B
       flex * lens.banWeights.flex +
       patch +
       poolCounters * 5.2 * lens.banWeights.counter +
+      partyCounterWeight * 5.2 * lens.banWeights.counter * 0.6 +
+      comboBreak * 2.2 +
       difficultyFactor +
       epicFactor +
       lensHeroScore(hero, lens) * 0.6;
 
     const reasons: string[] = [];
-    if (poolCounters) reasons.push(`Beats ${poolCounters} of your ${draft.lane ? LANE_BY_ID[draft.lane].short : ''} pool`.trim());
+    if (poolCounters) reasons.push(`Beats ${poolCounters} of your ${activeLane ? LANE_BY_ID[activeLane].short : ''} pool`.trim());
+    if (partyCounterMembers >= 2) reasons.push(`Counters ${partyCounterMembers} party pools`);
+    else if (partyCounterMembers === 1) {
+      const pool = friendPools.find((entry) => entry.ids.some((id) => hero.counters.includes(id)));
+      if (pool) reasons.push(`Breaks ${pool.name}'s ${pool.lane ? LANE_BY_ID[pool.lane].short : ''} pool`.trim());
+    }
+    if (comboBreak >= 2) reasons.push('Breaks your party combo');
     if (hero.metaRank && hero.metaRank <= 15) reasons.push(`Meta #${hero.metaRank} in the current patch`);
     else if (hero.meta >= 80) reasons.push('High meta priority');
     if (hero.banRate && hero.banRate >= 12) reasons.push(`${hero.banRate.toFixed(1)}% ban rate`);

@@ -962,3 +962,51 @@
 [data-theme='light'] .rank-card[data-rank='mythical_honor'] .rank-card__crest::after {
   opacity: 0.45;
 }
+
+
+/* ---------- Party mode on light glass ---------- */
+
+[data-theme='light'] .party-preset,
+[data-theme='light'] .party-member-card,
+[data-theme='light'] .party-summary,
+[data-theme='light'] .review-party,
+[data-theme='light'] .party-hud,
+[data-theme='light'] .member-tab,
+[data-theme='light'] .draft-member-tab,
+[data-theme='light'] .turn-member-btn,
+[data-theme='light'] .party-member-row,
+[data-theme='light'] .party-plan__member,
+[data-theme='light'] .party-plan__stats span,
+[data-theme='light'] .party-stat {
+  background: rgba(255, 255, 255, 0.62);
+  border-color: var(--line);
+  backdrop-filter: blur(14px) saturate(1.15);
+}
+[data-theme='light'] .party-preset:hover,
+[data-theme='light'] .member-tab:hover,
+[data-theme='light'] .draft-member-tab:hover,
+[data-theme='light'] .turn-member-btn:hover,
+[data-theme='light'] .party-member-row:hover {
+  background: rgba(255, 255, 255, 0.86);
+}
+[data-theme='light'] .party-preset.is-active,
+[data-theme='light'] .member-tab.is-active,
+[data-theme='light'] .draft-member-tab.is-active,
+[data-theme='light'] .turn-member-btn.is-active,
+[data-theme='light'] .party-member-row.is-active {
+  background: color-mix(in srgb, var(--rank-accent) 10%, white);
+}
+[data-theme='light'] .party-member-card__head input {
+  background: rgba(255, 255, 255, 0.85);
+}
+[data-theme='light'] .review-member {
+  background: rgba(255, 255, 255, 0.7);
+}
+[data-theme='light'] .profile-party-chip {
+  background: rgba(255, 255, 255, 0.62);
+}
+[data-theme='light'] .party-hud {
+  background:
+    radial-gradient(circle at 88% 0%, color-mix(in srgb, var(--rank-accent) 10%, transparent), transparent 55%),
+    rgba(255, 255, 255, 0.66);
+}

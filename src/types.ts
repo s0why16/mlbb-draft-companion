@@ -81,11 +81,20 @@ export interface HeroStat {
 
 export type LanePools = Record<Lane, HeroStat[]>;
 
+export interface PartyMember {
+  id: string;
+  name: string;
+  preferredLane: Lane | null;
+  secondaryLane: Lane | null;
+  pools: LanePools;
+}
+
 export interface Profile {
-  version: 2;
+  version: 3;
   region: Region;
   rank: Rank;
   pools: LanePools;
+  party: PartyMember[];
   updatedAt: string;
 }
 
@@ -96,6 +105,9 @@ export interface Draft {
   picks: Record<Team, (string | null)[]>;
   myHeroId: string | null;
   mySlot: number | null;
+  memberLanes: Record<string, Lane | null>;
+  memberSlots: Record<string, number | null>;
+  activeMemberId: string | null;
 }
 
 export interface TeamMetrics {
@@ -120,6 +132,7 @@ export interface TeamAnalysis {
   warnings: string[];
   damage: 'physical' | 'magic' | 'balanced';
   picks: Hero[];
+  synergy: number;
 }
 
 export interface Threat {
@@ -141,6 +154,49 @@ export interface Recommendation {
   label: string;
 }
 
+export interface PartyMemberStat {
+  id: string;
+  name: string;
+  isSelf: boolean;
+  lane: Lane | null;
+  hero: Hero | null;
+  slot: number | null;
+  comfort: number | null;
+  matches: number | null;
+  winRate: number | null;
+  status: 'locked' | 'waiting' | 'unassigned';
+  bestPick: { heroId: string; name: string; score: number; reason: string } | null;
+}
+
+export interface PartySummary {
+  size: number;
+  label: string;
+  coordination: number;
+  synergy: number;
+  edge: number;
+  members: PartyMemberStat[];
+  combos: string[];
+}
+
+export interface PartyPlanMember {
+  id: string;
+  name: string;
+  lane: Lane | null;
+  hero: string | null;
+  comfort: number | null;
+  note: string;
+}
+
+export interface PartyPlan {
+  size: number;
+  label: string;
+  coordination: number;
+  synergy: number;
+  edge: number;
+  members: PartyPlanMember[];
+  combos: string[];
+}
+
 export interface Evaluation {
   ally: TeamAnalysis;
   enemy: TeamAnalysis;
@@ -152,6 +208,8 @@ export interface Evaluation {
   lane: Lane | null;
   myHero: Hero | null;
   metaLabel: string;
+  activeMemberId: string;
+  party: PartySummary | null;
 }
 
 export interface PhasePlan {
@@ -182,6 +240,7 @@ export interface Strategy {
   metaLabel: string;
   regionNote: string;
   rankNote: string;
+  party: PartyPlan | null;
 }
 
 export interface AppState {

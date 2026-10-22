@@ -9,6 +9,7 @@ import {
   saveStoredState,
 } from '../lib/storage';
 import { heroById } from '../lib/engine';
+import { SELF_MEMBER_ID } from '../lib/party';
 
 interface State {
   screen: Screen;
@@ -23,12 +24,16 @@ type Action =
   | { type: 'SAVE_PROFILE'; profile: Profile }
   | { type: 'SET_RANK'; rank: Rank }
   | { type: 'SET_RANK_PREVIEW'; rank: Rank | null }
-  | { type: 'START_DRAFT'; lane: Lane }
+  | { type: 'START_DRAFT'; lane: Lane; memberLanes?: Record<string, Lane | null> }
   | { type: 'ENTER_DRAFT' }
   | { type: 'SET_BAN'; team: Team; index: number; heroId: string | null }
   | { type: 'SET_PICK'; team: Team; index: number; heroId: string | null }
   | { type: 'LOCK_MY_HERO'; heroId: string }
+  | { type: 'LOCK_FOR_MEMBER'; memberId: string; heroId: string }
   | { type: 'MARK_MY_SLOT'; index: number | null }
+  | { type: 'ASSIGN_MEMBER_SLOT'; memberId: string; index: number | null }
+  | { type: 'SET_MEMBER_LANE'; memberId: string; lane: Lane | null }
+  | { type: 'SET_ACTIVE_MEMBER'; memberId: string | null }
   | { type: 'CLEAR_DRAFT' }
   | { type: 'RESET_ALL' }
   | { type: 'SET_CLOUD_CODE'; code: string | null };
@@ -40,6 +45,8 @@ function withUniqueHero(draft: Draft, kind: SlotKey, team: Team, index: number, 
     ...draft,
     bans: { ally: [...draft.bans.ally], enemy: [...draft.bans.enemy] },
     picks: { ally: [...draft.picks.ally], enemy: [...draft.picks.enemy] },
+    memberSlots: { ...draft.memberSlots },
+    memberLanes: { ...draft.memberLanes },
   };
   if (heroId) {
     for (const t of ['ally', 'enemy'] as Team[]) {
@@ -49,14 +56,70 @@ function withUniqueHero(draft: Draft, kind: SlotKey, team: Team, index: number, 
   }
   next[kind][team][index] = heroId;
 
-  if (next.mySlot != null) {
+  // Drop assignments that no longer point at a live ally pick.
+  next.memberSlots = Object.fromEntries(
+    Object.entries(next.memberSlots).filter(([, slot]) => slot != null && next.picks.ally[slot]),
+  ) as Record<string, number | null>;
+  if (next.mySlot != null && !next.picks.ally[next.mySlot]) {
+    next.mySlot = null;
+    next.myHeroId = null;
+  } else if (next.mySlot != null) {
     next.myHeroId = next.picks.ally[next.mySlot] ?? null;
-    if (!next.myHeroId) next.mySlot = null;
   }
   return next;
 }
 
-function reducer(state: State, action: Action): State {
+function lockForMember(draft: Draft, memberId: string, heroId: string): Draft {
+  const hero = heroById(heroId);
+  if (!hero) return draft;
+  const index = draft.picks.ally.findIndex((id) => !id);
+  if (index === -1) return draft;
+  const next = withUniqueHero(draft, 'picks', 'ally', index, hero.id);
+  // One owner per ally slot.
+  next.memberSlots = Object.fromEntries(
+    Object.entries(next.memberSlots).filter(([, slot]) => slot !== index),
+  ) as Record<string, number | null>;
+  next.memberSlots[memberId] = index;
+  if (memberId === SELF_MEMBER_ID) {
+    next.mySlot = index;
+    next.myHeroId = hero.id;
+  }
+  return next;
+}
+
+function assignMemberSlot(draft: Draft, memberId: string, index: number | null): Draft {
+  const next: Draft = {
+    ...draft,
+    memberSlots: { ...draft.memberSlots },
+  };
+  const clearSelf = () => {
+    if (memberId === SELF_MEMBER_ID) {
+      next.mySlot = null;
+      next.myHeroId = null;
+    }
+  };
+  if (index == null || index === draft.memberSlots[memberId]) {
+    delete next.memberSlots[memberId];
+    clearSelf();
+    return next;
+  }
+  if (!draft.picks.ally[index]) return draft;
+  // One owner per ally slot.
+  for (const [owner, slot] of Object.entries(next.memberSlots)) {
+    if (slot === index) delete next.memberSlots[owner];
+  }
+  next.memberSlots[memberId] = index;
+  if (memberId === SELF_MEMBER_ID) {
+    next.mySlot = index;
+    next.myHeroId = draft.picks.ally[index];
+  } else if (draft.mySlot === index) {
+    next.mySlot = null;
+    next.myHeroId = null;
+  }
+  return next;
+}
+
+export function gameReducer(state: State, action: Action): State {
   switch (action.type) {
     case 'SET_SCREEN':
       return {
@@ -79,6 +142,8 @@ function reducer(state: State, action: Action): State {
     case 'START_DRAFT': {
       const draft = emptyDraft();
       draft.lane = action.lane;
+      draft.memberLanes = { [SELF_MEMBER_ID]: action.lane, ...(action.memberLanes ?? {}) };
+      draft.activeMemberId = SELF_MEMBER_ID;
       return { ...state, draft, screen: 'ban' };
     }
     case 'ENTER_DRAFT':
@@ -93,22 +158,24 @@ function reducer(state: State, action: Action): State {
         ...state,
         draft: withUniqueHero(state.draft, 'picks', action.team, action.index, action.heroId),
       };
-    case 'LOCK_MY_HERO': {
-      const hero = heroById(action.heroId);
-      if (!hero) return state;
-      const index = state.draft.picks.ally.findIndex((id) => !id);
-      if (index === -1) return state;
-      const next = withUniqueHero(state.draft, 'picks', 'ally', index, hero.id);
-      next.mySlot = index;
-      next.myHeroId = hero.id;
+    case 'LOCK_MY_HERO':
+      return { ...state, draft: lockForMember(state.draft, SELF_MEMBER_ID, action.heroId) };
+    case 'LOCK_FOR_MEMBER':
+      return { ...state, draft: lockForMember(state.draft, action.memberId, action.heroId) };
+    case 'MARK_MY_SLOT':
+      return { ...state, draft: assignMemberSlot(state.draft, SELF_MEMBER_ID, action.index) };
+    case 'ASSIGN_MEMBER_SLOT':
+      return { ...state, draft: assignMemberSlot(state.draft, action.memberId, action.index) };
+    case 'SET_MEMBER_LANE': {
+      const next: Draft = {
+        ...state.draft,
+        memberLanes: { ...state.draft.memberLanes, [action.memberId]: action.lane },
+      };
+      if (action.memberId === SELF_MEMBER_ID) next.lane = action.lane;
       return { ...state, draft: next };
     }
-    case 'MARK_MY_SLOT': {
-      if (action.index == null) return { ...state, draft: { ...state.draft, mySlot: null, myHeroId: null } };
-      if (action.index === state.draft.mySlot) return { ...state, draft: { ...state.draft, mySlot: null, myHeroId: null } };
-      const heroId = state.draft.picks.ally[action.index];
-      return { ...state, draft: { ...state.draft, mySlot: heroId ? action.index : null, myHeroId: heroId ?? null } };
-    }
+    case 'SET_ACTIVE_MEMBER':
+      return { ...state, draft: { ...state.draft, activeMemberId: action.memberId } };
     case 'CLEAR_DRAFT':
       return { ...state, draft: emptyDraft(), screen: 'setup' };
     case 'RESET_ALL':
@@ -142,7 +209,7 @@ function initialState(): State {
 interface GameContextValue {
   state: State;
   dispatch: React.Dispatch<Action>;
-  startDraft: (lane: Lane) => void;
+  startDraft: (lane: Lane, memberLanes?: Record<string, Lane | null>) => void;
   clearDraft: () => void;
   resetAll: () => void;
 }
@@ -150,7 +217,7 @@ interface GameContextValue {
 const GameContext = createContext<GameContextValue | null>(null);
 
 export function GameProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, undefined, initialState);
+  const [state, dispatch] = useReducer(gameReducer, undefined, initialState);
 
   useEffect(() => {
     saveStoredState({ profile: state.profile, draft: state.draft, screen: state.screen });
@@ -160,7 +227,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     () => ({
       state,
       dispatch,
-      startDraft: (lane) => dispatch({ type: 'START_DRAFT', lane }),
+      startDraft: (lane, memberLanes) => dispatch({ type: 'START_DRAFT', lane, memberLanes }),
       clearDraft: () => dispatch({ type: 'CLEAR_DRAFT' }),
       resetAll: () => dispatch({ type: 'RESET_ALL' }),
     }),

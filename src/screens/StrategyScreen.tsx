@@ -19,6 +19,7 @@ import {
   Swords,
   Target,
   Timer,
+  Users,
   WandSparkles,
 } from 'lucide-react';
 import { LANE_BY_ID } from '../data/meta';
@@ -251,6 +252,36 @@ export function StrategyScreen() {
               <strong>{strategy.rankNote}</strong>
             </div>
           </section>
+
+          {strategy.party && (
+            <section className="side-card side-card--party">
+              <div className="side-card__head">
+                <span className="side-card__icon side-card__icon--cyan"><Users size={17} /></span>
+                <div>
+                  <Eyebrow>Party plan</Eyebrow>
+                  <h3>{strategy.party.label} · ×{strategy.party.coordination.toFixed(2)} comms</h3>
+                </div>
+              </div>
+              <div className="party-plan__stats">
+                <span><em>Synergy</em><strong>{strategy.party.synergy}</strong></span>
+                <span><em>Party edge</em><strong>+{strategy.party.edge.toFixed(1)}%</strong></span>
+              </div>
+              <div className="party-plan__members">
+                {strategy.party.members.map((member) => (
+                  <div key={member.id} className="party-plan__member">
+                    <strong>{member.name}</strong>
+                    <span>{member.lane ? LANE_BY_ID[member.lane].short : 'Lane?'}{member.hero ? ` · ${member.hero}` : ''}</span>
+                    <em>{member.comfort != null ? `${Math.round(member.comfort)} comfort` : member.note}</em>
+                  </div>
+                ))}
+              </div>
+              {strategy.party.combos.length > 0 && (
+                <div className="party-plan__combos">
+                  <Sparkles size={12} /> {strategy.party.combos.join(' · ')}
+                </div>
+              )}
+            </section>
+          )}
 
           <section className="side-card side-card--spell">
             <div className="side-card__head">

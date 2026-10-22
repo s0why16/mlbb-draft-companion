@@ -60,6 +60,7 @@ export function TopBar() {
   const activeRank = state.rankPreview ?? state.profile?.rank;
   const rank = activeRank ? RANK_BY_ID[activeRank] : null;
   const region = REGION_BY_ID[state.profile?.region ?? 'global'];
+  const partySize = (state.profile?.party?.length ?? 0) + 1;
   const inner = state.screen !== 'home';
 
   const goBack = () => {
@@ -105,7 +106,7 @@ export function TopBar() {
               {rank.shortLabel}
             </span>
             <span className="profile-pill__range">{rank.range}</span>
-            <span className="profile-pill__bans">{region.short} · {rank.bansPerTeam} bans</span>
+            <span className="profile-pill__bans">{region.short}{partySize > 1 ? ` · ${partySize}P` : ''} · {rank.bansPerTeam} bans</span>
             <button
               type="button"
               className="profile-pill__edit"

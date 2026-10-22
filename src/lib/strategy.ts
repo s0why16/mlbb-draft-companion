@@ -1,7 +1,8 @@
-import type { Draft, Evaluation, Hero, Lane, PhasePlan, Profile, Strategy, StrategyItem } from '../types';
+import type { Draft, Evaluation, Hero, Lane, PartyPlan, PhasePlan, Profile, Strategy, StrategyItem } from '../types';
 import { LANE_BY_ID } from '../data/meta';
 import { buildMetaLens } from './metaLens';
-import { comfortForHero, heroById, statForHero } from './engine';
+import { buildPartyCombos, buildPartyContext, comfortForHero, heroById, partyEdgeForContext, statForHero, teamSynergyRating } from './engine';
+import { memberById, memberStatForHero, partyLabel } from './party';
 
 const HEALERS = new Set(['estes', 'rafaela', 'floryn', 'angela', 'minotaur', 'belerick', 'uranus', 'alice', 'esmeralda', 'yu-zhong', 'thamuz', 'x-borg', 'ruby']);
 
@@ -264,6 +265,43 @@ function winConditionPhrase(evaluation: Evaluation, hero: Hero): string {
   return 'Objective-first — take vision, force the Turtle or Lord on a numbers advantage, and only fight when your team is together.';
 }
 
+function buildPartyPlan(evaluation: Evaluation, draft: Draft, profile: Profile | null): PartyPlan | null {
+  if (!profile) return null;
+  const context = buildPartyContext(profile, draft);
+  if (!context || context.size <= 1) return null;
+  const members = context.members.map((member) => {
+    const lane = context.lanes[member.id] ?? null;
+    const hero = context.locked[member.id] ?? context.likely[member.id]?.[0]?.hero ?? null;
+    const stat = hero ? memberStatForHero(member, hero.id) : undefined;
+    const comfort = comfortForHero(stat);
+    const locked = Boolean(context.locked[member.id]);
+    const note = locked
+      ? 'Locked in. Play the combo around this pick.'
+      : hero
+        ? 'Likely comfort pick. Early picks should set this up.'
+        : lane
+          ? 'Lane assigned, still waiting on a pick.'
+          : 'No lane assigned yet.';
+    return {
+      id: member.id,
+      name: member.name,
+      lane,
+      hero: hero?.name ?? null,
+      comfort: comfort?.score ?? null,
+      note,
+    };
+  });
+  return {
+    size: context.size,
+    label: partyLabel(context.size),
+    coordination: context.coordination,
+    synergy: Math.round(teamSynergyRating(evaluation.ally.picks, context)),
+    edge: partyEdgeForContext(context),
+    members,
+    combos: buildPartyCombos(context),
+  };
+}
+
 export function buildStrategy(evaluation: Evaluation, draft: Draft, profile: Profile | null): Strategy | null {
   const enemy = evaluation.enemy.picks;
   const ally = evaluation.ally.picks;
@@ -271,7 +309,7 @@ export function buildStrategy(evaluation: Evaluation, draft: Draft, profile: Pro
   if (!hero) return null;
   const lens = buildMetaLens(profile);
 
-  const lane = draft.lane;
+  const lane = evaluation.lane ?? draft.lane;
   const laneEnemy = enemy.find((item) => (lane ? item.lanes.includes(lane) : true));
   const priority = [...enemy]
     .filter((item) => !item.roles.includes('Tank'))
@@ -301,8 +339,12 @@ export function buildStrategy(evaluation: Evaluation, draft: Draft, profile: Pro
   if (lane === 'gold') notes.push('Your support owns the river ward; do not face-check the bush to “help” them.');
   if (lane === 'roam') notes.push('Call the engage target before you go in. A roam that starts without follow-up is just a death.');
   if (profile) {
-    const comfort = comfortForHero(statForHero(profile, hero.id));
-    if (comfort) notes.push(`You have ${comfort.matches} games at ${comfort.rawWinRate}% on ${hero.name}. Trust your practiced limits over a flashy counter-pick.`);
+    const member = memberById(profile, evaluation.activeMemberId);
+    const comfort = comfortForHero(memberStatForHero(member, hero.id) ?? statForHero(profile, hero.id));
+    if (comfort) {
+      const owner = member && !member.isSelf ? `${member.name} has` : 'You have';
+      notes.push(`${owner} ${comfort.matches} games at ${comfort.rawWinRate}% on ${hero.name}. Trust the practiced limits over a flashy counter-pick.`);
+    }
   }
   if (!notes.length) notes.push('Keep one defensive cooldown for their first engage — their draft wants you to commit first.');
 
@@ -326,6 +368,7 @@ export function buildStrategy(evaluation: Evaluation, draft: Draft, profile: Pro
     metaLabel: lens.label,
     regionNote: lens.notes.draft,
     rankNote: `${lens.rank.label} ${lens.rank.range}: ${lens.rank.detail}`,
+    party: buildPartyPlan(evaluation, draft, profile),
   };
 }
 
@@ -355,6 +398,18 @@ export function strategyToText(strategy: Strategy): string {
     `RANK FOCUS`,
     strategy.rankNote,
     ``,
+    ...(strategy.party
+      ? [
+          `PARTY PLAN`,
+          `${strategy.party.label} · coordination x${strategy.party.coordination.toFixed(2)} · synergy ${strategy.party.synergy} · party edge +${strategy.party.edge.toFixed(1)}%`,
+          ...strategy.party.members.map(
+            (member) =>
+              `• ${member.name} — ${laneLabel(member.lane)}${member.hero ? ` · ${member.hero}` : ''}${member.comfort != null ? ` (comfort ${Math.round(member.comfort)})` : ''}`,
+          ),
+          ...(strategy.party.combos.length ? [`Combos: ${strategy.party.combos.join(' · ')}`] : []),
+          ``,
+        ]
+      : []),
     `EXECUTION NOTES`,
     ...strategy.notes.map((note) => `• ${note}`),
   ];
