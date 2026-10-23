@@ -94,8 +94,32 @@ Party data is local and included in the optional Supabase backup. There are no j
 - **Partial-board projection** that stays neutral until both sides have something to compare and scales confidence with each matched pick.
 - **Transparent recommendations** showing counters, synergies, comfort, patch direction, and lane fit.
 - **Opponent-tailored strategy** generated from enemy tags such as heavy CC, dive, sustain, poke, scaling, and split push.
+- **Optional voice logging** for bans and picks, with fuzzy hero-name recognition, push-to-talk, and undo.
 - **Local-first persistence** with an optional Supabase cloud backup code.
 - **Keyboard-first pickers** and responsive layouts down to 320px.
+
+## Voice draft control
+
+A floating mic dock appears on the Ban and Draft screens. It logs bans and picks hands-free and remembers the last side and phase.
+
+| Say | Result |
+| --- | --- |
+| “Blue ban Lancelot” | Blue ban 1 = Lancelot |
+| “Red picks Fanny” | Red pick S1 = Fanny |
+| “Blue bans” then “Lance” | Arms Blue bans; bare hero names fill the next slots |
+| “Blue bans Lance and Selena” | Fills consecutive blue ban slots |
+| “They banned Tigreal” / “We picked Fanny” | Natural pronouns and past tense also work |
+| “Undo” | Removes the last voice entry |
+| “Stop listening” | Stops the microphone |
+
+- **Blue is your team, Red is the opponent.** The app uses the same mapping everywhere.
+- **Always-on:** tap the mic or press `V`. It keeps listening across Ban → Draft and stops when you leave those screens.
+- **Push-to-talk:** open the dock and hold “Hold to talk” while speaking. It is disabled while always-on is active.
+- **Misheard names:** the parser reuses the app’s hero aliases and adds fuzzy and phonetic matching (`Minsi`, `Lance a lot`, `cloud` → Claude). It also considers up to three alternatives from the browser’s recognizer.
+- **Safety:** a bare hero name is accepted for 20 seconds after a phase call (for example “blue bans” or “red picks”) or a mode chip, so background chatter does not fill the board. Saying only “I’m blue” changes the side but still requires a ban/pick call. Every voice entry can be undone, and conflicting phrases are rejected with a prompt to say one side at a time or use “then”.
+- **Browser support:** Chrome/Edge desktop is recommended. Android Chrome works; Safari has partial support; Firefox does not expose the Web Speech API. The page must be served over HTTPS or localhost.
+- **Privacy:** the draft engine remains local, but the optional voice transcription is performed by the browser’s speech service. The app has no voice backend and stores only the transcript text in memory.
+- **Keep the tab visible** while drafting; background tabs may pause microphone access.
 
 ## How the engine works
 
@@ -188,7 +212,7 @@ The backup uses a 10-character sync code (for example `ABCDE-23456`). The `mlbb_
 ```bash
 npm run build      # typecheck + production build
 npm run preview    # preview the production build
-npm test           # engine and search unit tests
+npm test           # engine, search, projection, party, and voice parser tests
 npm run typecheck
 ```
 
@@ -206,19 +230,21 @@ Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the Vercel project if yo
 
 ```text
 src/
-  components/        UI primitives, hero picker, turn overlay, rank crest
+  components/        UI primitives, hero picker, turn overlay, rank crest, voice dock
   data/              generated hero data, lane/rank/tag metadata
-  lib/               comfort model, draft engine, strategy generator, storage, cloud
+  hooks/             browser speech-recognition lifecycle
+  lib/               comfort model, draft engine, strategy generator, storage, cloud, voice parser
   screens/           Home, Onboarding, Setup, Ban, Draft, Strategy
-  state/             reducer + local persistence
-  styles/            design tokens, base, components, screens, rank themes, light theme
+  state/             reducer + local persistence + voice controller
+  styles/            design tokens, base, components, screens, rank themes, light theme, voice dock
 public/
-  heroes/            133 optimized WebP portraits
+  heroes/            133 optimized WebP portraits plus 64px/96px variants
 supabase/
   mlbb-profiles.sql  RPC-only cloud backup schema
 scripts/
   build-data.mjs     regenerate src/data/heroes.ts
   download-portraits.mjs
+  build-portrait-variants.mjs
   setup-supabase.mjs
 docs/
   preview.webp

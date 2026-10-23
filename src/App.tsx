@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useGame } from './state/GameContext';
 import { useTheme } from './state/ThemeContext';
 import { TopBar } from './components/TopBar';
+import { VoiceDock } from './components/VoiceDock';
 import { RankCrest } from './components/RankCrest';
 import { RANK_BY_ID } from './data/meta';
 import { HomeScreen } from './screens/HomeScreen';
@@ -92,6 +93,7 @@ export default function App() {
       <main id="main" className="app-main" key={effective}>
         {renderScreen()}
       </main>
+      <VoiceDock />
     </div>
   );
 }

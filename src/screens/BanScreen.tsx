@@ -19,6 +19,7 @@ import { LANE_BY_ID, PATCH_LABEL, RANK_BY_ID } from '../data/meta';
 import { REGION_BY_ID } from '../data/regions';
 import { partyLabel } from '../lib/party';
 import { useGame } from '../state/GameContext';
+import { useVoiceMode } from '../state/VoiceContext';
 import { suggestBans, metaGrade } from '../lib/engine';
 import { searchHeroes, usedHeroIds } from '../lib/search';
 import { cn } from '../lib/cn';
@@ -31,6 +32,7 @@ import { useToast } from '../components/Toast';
 export function BanScreen() {
   const { state, dispatch } = useGame();
   const toast = useToast();
+  const { mode: voiceMode, setMode: setVoiceMode } = useVoiceMode();
   const profile = state.profile!;
   const rank = RANK_BY_ID[profile.rank];
   const region = REGION_BY_ID[profile.region];
@@ -40,6 +42,15 @@ export function BanScreen() {
   const [focus, setFocus] = useState(0);
   const [picker, setPicker] = useState<{ open: boolean; team: Team; index: number }>({ open: false, team: 'ally', index: 0 });
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (voiceMode.kind === 'ban') setBanTeam(voiceMode.side);
+  }, [voiceMode]);
+
+  const chooseBanTeam = (team: Team) => {
+    setBanTeam(team);
+    setVoiceMode({ kind: 'ban', side: team });
+  };
 
   const used = useMemo(() => usedHeroIds(state.draft), [state.draft]);
   const suggestions = useMemo(() => suggestBans(profile, state.draft, 5), [profile, state.draft]);
@@ -79,7 +90,7 @@ export function BanScreen() {
     toast.push(`${hero.name} banned`, { detail: `${banTeam === 'ally' ? 'Blue' : 'Red'} ban ${slot + 1} · ${rank.bansPerTeam} per team` });
     if (slot + 1 >= rank.bansPerTeam) {
       window.setTimeout(() => {
-        if (banTeam === 'ally' && !enemyFull) setBanTeam('enemy');
+        if (banTeam === 'ally' && !enemyFull) chooseBanTeam('enemy');
       }, 320);
     }
   };
@@ -97,7 +108,7 @@ export function BanScreen() {
     placeBan('ally', slot, hero.id);
     toast.push(`${hero.name} prioritised`, { detail: `One-tap blue ban ${slot + 1}. ${hero.patch?.status === 'buff' ? 'Buffed this patch.' : ''}`.trim() });
     if (slot + 1 >= rank.bansPerTeam && !enemyFull) {
-      window.setTimeout(() => setBanTeam('enemy'), 250);
+      window.setTimeout(() => chooseBanTeam('enemy'), 250);
     }
   };
 
@@ -250,14 +261,14 @@ export function BanScreen() {
         <section className="ban-board">
           <div className="ban-board__top">
             <div className="team-toggle" role="tablist" aria-label="Ban team">
-              <button type="button" role="tab" aria-selected={banTeam === 'ally'} className={cn(banTeam === 'ally' && 'is-active')} onClick={() => setBanTeam('ally')}>
+              <button type="button" role="tab" aria-selected={banTeam === 'ally'} className={cn(banTeam === 'ally' && 'is-active')} onClick={() => chooseBanTeam('ally')}>
                 <span className="team-toggle__dot team-toggle__dot--blue" /> Blue bans <em>{allyBans}/{rank.bansPerTeam}</em>
               </button>
-              <button type="button" role="tab" aria-selected={banTeam === 'enemy'} className={cn(banTeam === 'enemy' && 'is-active')} onClick={() => setBanTeam('enemy')}>
+              <button type="button" role="tab" aria-selected={banTeam === 'enemy'} className={cn(banTeam === 'enemy' && 'is-active')} onClick={() => chooseBanTeam('enemy')}>
                 <span className="team-toggle__dot team-toggle__dot--red" /> Red bans <em>{enemyBans}/{rank.bansPerTeam}</em>
               </button>
             </div>
-            <span className="ban-board__hint"><Kbd>/</Kbd> search · <Kbd>↑↓</Kbd> navigate · <Kbd>↵</Kbd> ban</span>
+            <span className="ban-board__hint"><Kbd>/</Kbd> search · <Kbd>↑↓</Kbd> navigate · <Kbd>↵</Kbd> ban · <Kbd>V</Kbd> voice</span>
           </div>
 
           <div className="ban-search">
@@ -272,7 +283,7 @@ export function BanScreen() {
               disabled={activeTeamFull && !query}
               spellCheck={false}
             />
-            <button type="button" className={cn('toggle-pill', banTeam === 'enemy' && 'is-active')} onClick={() => setBanTeam(banTeam === 'ally' ? 'enemy' : 'ally')}>
+            <button type="button" className={cn('toggle-pill', banTeam === 'enemy' && 'is-active')} onClick={() => chooseBanTeam(banTeam === 'ally' ? 'enemy' : 'ally')}>
               {banTeam === 'ally' ? 'Blue' : 'Red'}
             </button>
           </div>

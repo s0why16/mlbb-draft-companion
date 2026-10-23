@@ -484,7 +484,7 @@ export function DraftScreen() {
         <div className="draft-page__title">
           <Eyebrow>Step 4 · Live 5v5 draft</Eyebrow>
           <h1>Read the room. Then take it.</h1>
-          <p>Log picks as they happen. The projection adapts to a partial board — no need to wait for all ten slots.</p>
+          <p>Log picks as they happen or use the voice dock. The projection adapts to a partial board — no need to wait for all ten slots.</p>
         </div>
         <div className="draft-page__actions">
           <div className="draft-page__rank">
