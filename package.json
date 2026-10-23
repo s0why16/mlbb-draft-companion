@@ -14,7 +14,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "data:heroes": "node scripts/build-data.mjs",
-    "data:portraits": "node scripts/download-portraits.mjs",
+    "data:portraits": "node scripts/download-portraits.mjs && node scripts/build-portrait-variants.mjs",
+    "data:portraits:optimize": "node scripts/build-portrait-variants.mjs",
     "data:supabase": "node scripts/setup-supabase.mjs"
   },
   "dependencies": {

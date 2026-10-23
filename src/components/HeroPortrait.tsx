@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import type { Hero } from '../types';
 import { cn } from '../lib/cn';
 
-export function HeroPortrait({
+function portraitSrc(hero: Hero, size?: number): string {
+  if (!size) return hero.portrait;
+  const variant = size <= 32 ? '64' : size <= 64 ? '96' : null;
+  return variant ? hero.portrait.replace('/heroes/', `/heroes/${variant}/`) : hero.portrait;
+}
+
+export const HeroPortrait = memo(function HeroPortrait({
   hero,
   size,
   className,
@@ -27,7 +33,7 @@ export function HeroPortrait({
         </span>
       ) : (
         <img
-          src={hero.portrait}
+          src={portraitSrc(hero, size)}
           alt={hero.name}
           width={size ?? 192}
           height={size ?? 192}
@@ -39,4 +45,4 @@ export function HeroPortrait({
       )}
     </span>
   );
-}
+});

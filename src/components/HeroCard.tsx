@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from 'react';
+import { memo, type KeyboardEvent } from 'react';
 import type { Hero } from '../types';
 import { LANE_BY_ID } from '../data/meta';
 import { metaGrade } from '../lib/engine';
@@ -18,7 +18,7 @@ interface HeroCardProps {
   priority?: boolean;
 }
 
-export function HeroCard({
+export const HeroCard = memo(function HeroCard({
   hero,
   onClick,
   selected = false,
@@ -74,4 +74,4 @@ export function HeroCard({
       )}
     </div>
   );
-}
+});

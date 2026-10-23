@@ -25,8 +25,12 @@ function levenshtein(a: string, b: string): number {
   return previous[b.length];
 }
 
+const SEARCH_TERMS = new Map(
+  HEROES.map((hero) => [hero.id, [hero.name, ...hero.aliases].map(normalizeQuery).filter(Boolean)] as const),
+);
+
 export function heroSearchTerms(hero: Hero): string[] {
-  return [hero.name, ...hero.aliases].map(normalizeQuery).filter(Boolean);
+  return SEARCH_TERMS.get(hero.id) ?? [hero.name, ...hero.aliases].map(normalizeQuery).filter(Boolean);
 }
 
 export function scoreHero(hero: Hero, query: string): number {

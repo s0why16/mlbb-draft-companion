@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { RotateCcw, Search, SlidersHorizontal } from 'lucide-react';
 import type { Lane, Role } from '../types';
 import { LANES, LANE_BY_ID } from '../data/meta';
@@ -34,6 +34,7 @@ export function HeroPicker({ open, onClose, onSelect, title, subtitle, exclude, 
   const [roles, setRoles] = useState<Role[]>([]);
   const [focused, setFocused] = useState(0);
   const gridRef = useRef<HTMLDivElement>(null);
+  const deferredQuery = useDeferredValue(query);
 
   useEffect(() => {
     if (open) {
@@ -45,8 +46,8 @@ export function HeroPicker({ open, onClose, onSelect, title, subtitle, exclude, 
   }, [open, initialLane]);
 
   const results = useMemo(
-    () => searchHeroes(query, { lane, roles, exclude, limit: 48 }),
-    [query, lane, roles, exclude],
+    () => searchHeroes(deferredQuery, { lane, roles, exclude, limit: 48 }),
+    [deferredQuery, lane, roles, exclude],
   );
 
   useEffect(() => {
@@ -64,23 +65,24 @@ export function HeroPicker({ open, onClose, onSelect, title, subtitle, exclude, 
   };
 
   const handleSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!results.length) return;
+    const available = deferredQuery === query ? results : searchHeroes(query, { lane, roles, exclude, limit: 48 });
+    if (!available.length) return;
     const columns = window.innerWidth < 560 ? 4 : window.innerWidth < 760 ? 5 : window.innerWidth < 980 ? 6 : window.innerWidth < 1200 ? 7 : 8;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setFocused((index) => Math.min(results.length - 1, index + columns));
+      setFocused((index) => Math.min(available.length - 1, index + columns));
     } else if (event.key === 'ArrowUp') {
       event.preventDefault();
       setFocused((index) => Math.max(0, index - columns));
     } else if (event.key === 'ArrowRight') {
       event.preventDefault();
-      setFocused((index) => Math.min(results.length - 1, index + 1));
+      setFocused((index) => Math.min(available.length - 1, index + 1));
     } else if (event.key === 'ArrowLeft') {
       event.preventDefault();
       setFocused((index) => Math.max(0, index - 1));
     } else if (event.key === 'Enter') {
       event.preventDefault();
-      const hero = results[focused] ?? results[0];
+      const hero = available[focused] ?? available[0];
       if (hero) onSelect(hero.id);
     }
   };
