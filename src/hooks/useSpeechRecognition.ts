@@ -1,14 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
+import { voiceRecognitionPhrases } from '../lib/voice';
 
 export type SpeechSession = 'continuous' | 'push';
 export type SpeechStatus = 'idle' | 'starting' | 'listening' | 'sending' | 'error';
+export type BoostStatus = 'off' | 'checking' | 'downloading' | 'ready' | 'unavailable' | 'unsupported';
+
+export interface SpeechAlternative {
+  transcript: string;
+  confidence: number;
+}
 
 interface SpeechControllerOptions {
   setStatus: (status: SpeechStatus) => void;
   setError: (error: string | null) => void;
   setInterim: (text: string) => void;
   setSession: (session: SpeechSession | null) => void;
-  onFinal: { current: (alternatives: string[]) => void };
+  onFinal: { current: (alternatives: SpeechAlternative[]) => void };
+  languageRef: { current: string };
+  boostRef: { current: boolean };
+  boostReadyRef: { current: boolean };
 }
 
 interface SpeechController {
@@ -18,11 +28,16 @@ interface SpeechController {
 }
 
 interface UseSpeechRecognitionOptions {
-  onFinal: (alternatives: string[]) => void;
+  onFinal: (alternatives: SpeechAlternative[]) => void;
+  language: string;
+  vocabularyBoost: boolean;
+  enabled?: boolean;
 }
 
 interface UseSpeechRecognitionResult {
   supported: boolean;
+  boostSupported: boolean;
+  boostStatus: BoostStatus;
   status: SpeechStatus;
   error: string | null;
   interim: string;
@@ -37,14 +52,50 @@ const ERROR_MESSAGES: Record<string, string> = {
   'service-not-allowed': 'This browser blocked its speech service. Try Chrome or Edge.',
   'audio-capture': 'No microphone was found. Connect or enable a microphone and try again.',
   network: 'Speech recognition lost its connection. Check your internet connection and try again.',
-  'language-not-supported': 'This browser does not support the current speech language.',
+  'language-not-supported': 'This browser does not support the selected accent. Try English (UK) or English (US).',
+  'phrases-not-supported': 'This browser cannot bias recognition toward hero names. Turn off Hero boost.',
   'no-speech': 'No speech was detected.',
   aborted: 'Listening was interrupted.',
 };
 
+const BOOST_FALLBACK_ERRORS = new Set([
+  'language-not-supported',
+  'phrases-not-supported',
+  'service-not-allowed',
+  'network',
+]);
+
 function getRecognitionConstructor(): SpeechRecognitionConstructor | undefined {
   if (typeof window === 'undefined') return undefined;
   return window.SpeechRecognition ?? window.webkitSpeechRecognition;
+}
+
+function getPhraseConstructor(): SpeechRecognitionPhraseConstructor | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return window.SpeechRecognitionPhrase;
+}
+
+function supportsContextualBiasing(): boolean {
+  const Constructor = getRecognitionConstructor();
+  return Boolean(
+    Constructor &&
+      getPhraseConstructor() &&
+      Constructor.prototype &&
+      'phrases' in Constructor.prototype,
+  );
+}
+
+let contextualPhraseCache: SpeechRecognitionPhraseLike[] | null = null;
+
+function contextualPhrases(): SpeechRecognitionPhraseLike[] | null {
+  const Phrase = getPhraseConstructor();
+  if (!Phrase || !supportsContextualBiasing()) return null;
+  if (!contextualPhraseCache) {
+    contextualPhraseCache = voiceRecognitionPhrases().map(
+      (phrase) => new Phrase(phrase, 5),
+    );
+  }
+  return contextualPhraseCache;
 }
 
 function defaultLanguage(): string {
@@ -71,6 +122,8 @@ function createSpeechController(options: SpeechControllerOptions): SpeechControl
   let awaitingFinal = false;
   let gotFinal = false;
   let networkRetries = 0;
+  let forceCloud = false;
+  let currentBoosted = false;
 
   const clearRestart = () => {
     if (restartTimer !== null) {
@@ -125,8 +178,24 @@ function createSpeechController(options: SpeechControllerOptions): SpeechControl
     recognition = next;
     next.continuous = nextSession === 'continuous';
     next.interimResults = true;
-    next.maxAlternatives = 3;
-    next.lang = defaultLanguage();
+    next.maxAlternatives = 5;
+    next.lang = options.languageRef.current || defaultLanguage();
+
+    const phrases =
+      !forceCloud && options.boostRef.current && options.boostReadyRef.current
+        ? contextualPhrases()
+        : null;
+    currentBoosted = false;
+    if (phrases) {
+      try {
+        next.phrases = phrases;
+        next.processLocally = true;
+        currentBoosted = true;
+      } catch {
+        // Some Chromium builds expose the property but reject it. Use cloud.
+        currentBoosted = false;
+      }
+    }
 
     next.onstart = () => {
       if (myToken !== token) return;
@@ -138,14 +207,22 @@ function createSpeechController(options: SpeechControllerOptions): SpeechControl
       if (myToken !== token) return;
 
       let interimText = '';
-      const finalBatches: string[][] = [];
+      const finalBatches: SpeechAlternative[][] = [];
       for (let index = event.resultIndex; index < event.results.length; index++) {
         const result = event.results[index];
         if (result.isFinal) {
-          const alternatives: string[] = [];
+          const alternatives: SpeechAlternative[] = [];
+          const seen = new Set<string>();
           for (let alt = 0; alt < result.length; alt++) {
             const transcript = result[alt]?.transcript?.trim();
-            if (transcript) alternatives.push(transcript);
+            if (!transcript) continue;
+            const key = transcript.toLowerCase();
+            if (seen.has(key)) continue;
+            seen.add(key);
+            alternatives.push({
+              transcript,
+              confidence: result[alt]?.confidence ?? 0,
+            });
           }
           if (alternatives.length) finalBatches.push(alternatives);
         } else {
@@ -179,6 +256,24 @@ function createSpeechController(options: SpeechControllerOptions): SpeechControl
       if (event.error === 'aborted' || event.error === 'no-speech') {
         if (nextSession === 'push' && event.error === 'no-speech' && !gotFinal) {
           options.setError(null);
+        }
+        return;
+      }
+
+      // Contextual biasing currently requires the on-device model in Chrome.
+      // If that model is unavailable, restart once with the regular cloud
+      // recognizer before surfacing an error.
+      if (currentBoosted && !forceCloud && BOOST_FALLBACK_ERRORS.has(event.error)) {
+        forceCloud = true;
+        currentBoosted = false;
+        options.setError(null);
+        options.setStatus('starting');
+        const retrySession = session;
+        if (restartTimer === null) {
+          restartTimer = window.setTimeout(() => {
+            restartTimer = null;
+            if (active && retrySession) begin(retrySession, true);
+          }, 250);
         }
         return;
       }
@@ -230,6 +325,12 @@ function createSpeechController(options: SpeechControllerOptions): SpeechControl
       next.start();
     } catch (error) {
       if (myToken !== token) return;
+      if (currentBoosted) {
+        forceCloud = true;
+        currentBoosted = false;
+        begin(nextSession, true);
+        return;
+      }
       active = false;
       options.setStatus('error');
       options.setError(startErrorMessage(error));
@@ -265,6 +366,8 @@ function createSpeechController(options: SpeechControllerOptions): SpeechControl
       gotFinal = false;
       awaitingFinal = false;
       networkRetries = 0;
+      forceCloud = false;
+      currentBoosted = false;
       lastInterim = '';
       options.setError(null);
       options.setInterim('');
@@ -304,7 +407,9 @@ function createSpeechController(options: SpeechControllerOptions): SpeechControl
           if (!awaitingFinal) return;
           awaitingFinal = false;
           const text = lastInterim.trim();
-          if (text) options.onFinal.current([text]);
+          if (text) {
+            options.onFinal.current([{ transcript: text, confidence: 0 }]);
+          }
           setIdle();
           // Ignore any final result that arrives after the fallback has run.
           token += 1;
@@ -321,6 +426,8 @@ function createSpeechController(options: SpeechControllerOptions): SpeechControl
       awaitingFinal = false;
       gotFinal = false;
       lastInterim = '';
+      forceCloud = false;
+      currentBoosted = false;
       token += 1;
       clearRestart();
       clearFinalize();
@@ -340,12 +447,23 @@ function createSpeechController(options: SpeechControllerOptions): SpeechControl
   };
 }
 
-export function useSpeechRecognition({ onFinal }: UseSpeechRecognitionOptions): UseSpeechRecognitionResult {
+export function useSpeechRecognition({
+  onFinal,
+  language,
+  vocabularyBoost,
+  enabled = true,
+}: UseSpeechRecognitionOptions): UseSpeechRecognitionResult {
   const onFinalRef = useRef(onFinal);
+  const languageRef = useRef(language);
+  const boostRef = useRef(vocabularyBoost);
+  const boostReadyRef = useRef(supportsContextualBiasing() && vocabularyBoost);
   const [status, setStatus] = useState<SpeechStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [interim, setInterim] = useState('');
   const [session, setSession] = useState<SpeechSession | null>(null);
+  const [boostStatus, setBoostStatus] = useState<BoostStatus>(() =>
+    supportsContextualBiasing() ? (vocabularyBoost ? 'checking' : 'off') : 'unsupported',
+  );
   const [controller] = useState<SpeechController>(() =>
     createSpeechController({
       setStatus,
@@ -353,12 +471,90 @@ export function useSpeechRecognition({ onFinal }: UseSpeechRecognitionOptions): 
       setInterim,
       setSession,
       onFinal: onFinalRef,
+      languageRef,
+      boostRef,
+      boostReadyRef,
     }),
   );
 
   useEffect(() => {
     onFinalRef.current = onFinal;
   }, [onFinal]);
+
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
+
+  useEffect(() => {
+    boostRef.current = vocabularyBoost;
+  }, [vocabularyBoost]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!enabled) {
+      return;
+    }
+
+    if (!supportsContextualBiasing()) {
+      boostReadyRef.current = false;
+      setBoostStatus('unsupported');
+      return;
+    }
+    if (!vocabularyBoost) {
+      boostReadyRef.current = false;
+      setBoostStatus('off');
+      return;
+    }
+
+    const Constructor = getRecognitionConstructor();
+    if (!Constructor?.available || !Constructor.install) {
+      boostReadyRef.current = true;
+      setBoostStatus('ready');
+      return;
+    }
+
+    setBoostStatus('checking');
+    boostReadyRef.current = true;
+    void (async () => {
+      try {
+        const availability = await Constructor.available!({
+          langs: [language],
+          processLocally: true,
+          quality: 'command',
+        });
+        if (cancelled) return;
+        if (availability === 'available') {
+          boostReadyRef.current = true;
+          setBoostStatus('ready');
+          return;
+        }
+        if (availability === 'downloadable' || availability === 'downloading') {
+          boostReadyRef.current = false;
+          setBoostStatus('downloading');
+          const installed = await Constructor.install!({
+            langs: [language],
+            processLocally: true,
+            quality: 'command',
+          });
+          if (cancelled) return;
+          boostReadyRef.current = installed;
+          setBoostStatus(installed ? 'ready' : 'unavailable');
+          return;
+        }
+        boostReadyRef.current = false;
+        setBoostStatus('unavailable');
+      } catch {
+        if (cancelled) return;
+        boostReadyRef.current = false;
+        setBoostStatus('unavailable');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [enabled, language, vocabularyBoost]);
 
   useEffect(() => {
     return () => controller.abort();
@@ -369,6 +565,8 @@ export function useSpeechRecognition({ onFinal }: UseSpeechRecognitionOptions): 
 
   return {
     supported,
+    boostSupported: supportsContextualBiasing(),
+    boostStatus,
     status,
     error,
     interim,

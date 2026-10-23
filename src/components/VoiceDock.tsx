@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Ban,
@@ -6,8 +6,10 @@ import {
   ChevronUp,
   Hand,
   Keyboard,
+  Languages,
   Mic,
   MicOff,
+  Pencil,
   Radio,
   Sparkles,
   Swords,
@@ -17,8 +19,15 @@ import {
 import type { Team } from '../types';
 import { useGame } from '../state/GameContext';
 import { useVoice } from '../state/VoiceContext';
-import type { VoiceMode, VoicePlacement } from '../lib/voice';
+import {
+  VOICE_LANGUAGES,
+  type VoiceLanguage,
+  type VoiceMode,
+  type VoicePlacement,
+} from '../lib/voice';
+import { usedHeroIds } from '../lib/search';
 import { cn } from '../lib/cn';
+import { HeroPicker } from './HeroPicker';
 import { HeroPortrait } from './HeroPortrait';
 import { Kbd } from './Primitives';
 
@@ -47,6 +56,9 @@ export function VoiceDock() {
   const { state } = useGame();
   const voice = useVoice();
   const visible = Boolean(state.profile) && (state.screen === 'ban' || state.screen === 'draft');
+  const [typed, setTyped] = useState('');
+  const [correcting, setCorrecting] = useState(false);
+  const used = useMemo(() => usedHeroIds(state.draft), [state.draft]);
 
   useEffect(() => {
     if (!visible) return;
@@ -84,6 +96,10 @@ export function VoiceDock() {
       delete document.body.dataset.voiceDock;
     };
   }, [visible, voice.panelOpen]);
+
+  useEffect(() => {
+    if (!voice.panelOpen) setCorrecting(false);
+  }, [voice.panelOpen]);
 
   if (!visible) return null;
 
@@ -251,7 +267,73 @@ export function VoiceDock() {
 
           {!voice.supported && !voice.error && (
             <div className="voice-note">
-              Voice input needs Chrome or Edge. The manual pickers still work normally.
+              Voice input needs Chrome or Edge. You can still type a command below or use the manual
+              pickers.
+            </div>
+          )}
+
+          <div className="voice-settings">
+            <label className="voice-language">
+              <Languages size={12} />
+              <span>Accent</span>
+              <select
+                value={voice.language}
+                onChange={(event) => voice.setLanguage(event.target.value as VoiceLanguage)}
+                aria-label="Speech recognition accent"
+              >
+                {VOICE_LANGUAGES.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className={cn(
+                'voice-boost',
+                voice.vocabularyBoost && voice.boostSupported && voice.boostStatus !== 'unavailable' && 'is-on',
+              )}
+              onClick={voice.toggleVocabularyBoost}
+              disabled={!voice.boostSupported}
+              aria-pressed={voice.vocabularyBoost}
+              title={
+                voice.boostSupported
+                  ? 'Bias the recognizer toward every MLBB hero name. Uses the on-device Chrome model; falls back to cloud recognition.'
+                  : 'Hero-name boost needs desktop Chrome 142 or newer. The selected accent is still used.'
+              }
+            >
+              <Sparkles size={11} />
+              Hero boost{' '}
+              {!voice.boostSupported
+                ? 'unavailable'
+                : !voice.vocabularyBoost
+                  ? 'off'
+                  : voice.boostStatus === 'ready'
+                    ? 'on'
+                    : voice.boostStatus === 'downloading'
+                      ? 'downloading'
+                      : voice.boostStatus === 'checking'
+                        ? 'checking'
+                        : 'unavailable'}
+            </button>
+          </div>
+          {!voice.boostSupported && (
+            <div className="voice-note voice-note--compact">
+              Hero-name boost needs desktop Chrome 142+. On this device, use the accent menu and
+              the correction buttons.
+            </div>
+          )}
+          {voice.boostSupported && voice.vocabularyBoost && voice.boostStatus === 'downloading' && (
+            <div className="voice-note voice-note--compact">
+              Preparing the on-device hero vocabulary (one-time download). Cloud voice still works
+              while it downloads.
+            </div>
+          )}
+          {voice.boostSupported && voice.vocabularyBoost && voice.boostStatus === 'unavailable' && (
+            <div className="voice-note voice-note--compact">
+              On-device hero vocabulary is unavailable for this accent. Cloud voice still works.
+              Try another accent or English (US), or use the accent menu and Correct.
             </div>
           )}
 
@@ -328,6 +410,66 @@ export function VoiceDock() {
 
           {voice.feedback.message && <p className="voice-message">{voice.feedback.message}</p>}
 
+          {voice.feedback.candidates.length > 0 && (
+            <div className="voice-candidates">
+              <span>Did you mean</span>
+              {voice.feedback.candidates.map((candidate) => (
+                <button
+                  key={candidate.hero.id}
+                  type="button"
+                  onClick={() => voice.applyCandidate(candidate.hero.id)}
+                >
+                  <HeroPortrait hero={candidate.hero} size={24} />
+                  {candidate.hero.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <form
+            className="voice-type"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!typed.trim()) return;
+              voice.applyTextCommand(typed);
+              setTyped('');
+            }}
+          >
+            <input
+              value={typed}
+              onChange={(event) => setTyped(event.target.value)}
+              placeholder="Or type: blue ban Lance"
+              aria-label="Type a voice command"
+              autoComplete="off"
+            />
+            <button type="submit" disabled={!typed.trim()}>
+              Send
+            </button>
+          </form>
+
+          {voice.feedback.alternatives.length > 0 && (
+            <details className="voice-details">
+              <summary>Recognition details</summary>
+              <div className="voice-details__list">
+                {voice.feedback.alternatives.map((alternative, index) => (
+                  <div key={`${alternative.transcript}-${index}`}>
+                    <span>{index === 0 ? 'Top' : `Alt ${index + 1}`}</span>
+                    <strong>{alternative.transcript}</strong>
+                    <em>
+                      {alternative.confidence > 0
+                        ? `${Math.round(alternative.confidence * 100)}%`
+                        : 'no confidence'}
+                    </em>
+                  </div>
+                ))}
+              </div>
+              <p>
+                If the transcript is wrong, the recognizer misheard you. Try the accent menu or
+                Hero boost. If it is right but the hero is wrong, use Correct below.
+              </p>
+            </details>
+          )}
+
           {voice.feedback.placements.length > 0 && (
             <div className="voice-results">
               {voice.feedback.placements.slice(0, 4).map((placement) => (
@@ -361,9 +503,14 @@ export function VoiceDock() {
                 <span>Last voice entry</span>
                 <strong>{latestPlacement.hero.name} · {slotLabel(latestPlacement)}</strong>
               </div>
-              <button type="button" onClick={voice.undoLast}>
-                <Undo2 size={13} /> Undo
-              </button>
+              <div className="voice-last__actions">
+                <button type="button" onClick={() => setCorrecting(true)} title="Choose the hero you actually said">
+                  <Pencil size={12} /> Correct
+                </button>
+                <button type="button" onClick={voice.undoLast}>
+                  <Undo2 size={13} /> Undo
+                </button>
+              </div>
             </div>
           )}
 
@@ -380,8 +527,11 @@ export function VoiceDock() {
             </div>
             <p>
               Blue is your team. Bare hero names work for 20 seconds after a call like
-              “blue bans” or a mode chip. Audio is transcribed by your browser; this app only
-              keeps the text in memory.
+              “blue bans” or a mode chip. Pick your accent above; Indian and UK English use
+              different recognizer models. On desktop Chrome, Hero boost biases recognition
+              toward every hero name. If a hero is still wrong, tap Correct — the app remembers
+              that phrase. Audio is transcribed by your browser; this app only keeps the text in
+              memory.
             </p>
           </div>
 
@@ -393,6 +543,22 @@ export function VoiceDock() {
           </div>
         </section>
       )}
+
+      <HeroPicker
+        open={correcting && Boolean(latestPlacement)}
+        onClose={() => setCorrecting(false)}
+        onSelect={(heroId) => {
+          voice.correctLast(heroId);
+          setCorrecting(false);
+        }}
+        title="Correct last voice entry"
+        subtitle={
+          latestPlacement
+            ? `Replace ${latestPlacement.hero.name} in ${slotLabel(latestPlacement)}`
+            : undefined
+        }
+        exclude={used}
+      />
     </div>
   );
 }

@@ -113,12 +113,16 @@ A floating mic dock appears on the Ban and Draft screens. It logs bans and picks
 | “Stop listening” | Stops the microphone |
 
 - **Blue is your team, Red is the opponent.** The app uses the same mapping everywhere.
+- **Accent selector:** choose English (India), English (UK), or English (US) in the dock. The choice persists per device and restarts the recognizer with the matching model where the browser supports it.
 - **Always-on:** tap the mic or press `V`. It keeps listening across Ban → Draft and stops when you leave those screens.
 - **Push-to-talk:** open the dock and hold “Hold to talk” while speaking. It is disabled while always-on is active.
-- **Misheard names:** the parser reuses the app’s hero aliases and adds fuzzy and phonetic matching (`Minsi`, `Lance a lot`, `cloud` → Claude). It also considers up to three alternatives from the browser’s recognizer.
+- **Hero-name boost:** on desktop Chrome 142+, the dock uses contextual biasing to teach the recognizer every hero name and alias. This fixes proper-noun errors such as “Belerick” → “Beatrix” and “Eudora” → “editor”. It uses the on-device model for the selected accent, downloads that model the first time it is needed, and automatically falls back to cloud recognition. Mobile Chrome does not expose this API yet; use the accent selector and correction there.
+- **Misheard names:** the parser reuses hero aliases and adds fuzzy, phonetic, vowel-tolerant, and Indian/British English variants (`Minsi`, `Lance a lot`, `cloud` → Claude, `glue` → Gloo, `belrick` → Belerick, `dora` → Eudora). It considers up to five recognizer alternatives.
+- **Correction:** after a voice entry, tap **Correct** to choose the hero you actually said. The app remembers that phrase for next time, so the same microphone/recognizer mistake is fixed automatically. A typed command fallback is also available in the dock.
+- **Diagnostics:** the dock shows the exact transcript, all recognizer alternatives, and confidence. When a command cannot be resolved, it shows tappable “Did you mean…” candidates instead of failing silently.
 - **Safety:** a bare hero name is accepted for 20 seconds after a phase call (for example “blue bans” or “red picks”) or a mode chip, so background chatter does not fill the board. Saying only “I’m blue” changes the side but still requires a ban/pick call. Every voice entry can be undone, and conflicting phrases are rejected with a prompt to say one side at a time or use “then”.
-- **Browser support:** Chrome/Edge desktop is recommended. Android Chrome works; Safari has partial support; Firefox does not expose the Web Speech API. The page must be served over HTTPS or localhost.
-- **Privacy:** the draft engine remains local, but the optional voice transcription is performed by the browser’s speech service. The app has no voice backend and stores only the transcript text in memory.
+- **Browser support:** Chrome/Edge desktop is recommended. Android Chrome works; Safari has partial support; Firefox does not expose the Web Speech API. The page must be served over HTTPS or localhost. Hero-name boost needs desktop Chrome 142+ and may download Chrome’s on-device model the first time.
+- **Privacy:** the draft engine remains local. With Hero boost on, Chrome can transcribe on-device; otherwise the browser’s speech service processes the audio. The app has no voice backend, stores only transcript text in memory, and keeps learned corrections in local storage.
 - **Keep the tab visible** while drafting; background tabs may pause microphone access.
 
 ## How the engine works

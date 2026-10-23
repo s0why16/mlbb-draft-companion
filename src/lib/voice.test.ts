@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { Hero } from '../types';
 import { emptyDraft } from './storage';
 import { heroById } from './engine';
-import { parseVoiceCommand, planVoicePlacements, type VoiceMode } from './voice';
+import {
+  parseVoiceCommand,
+  planVoicePlacements,
+  suggestVoiceHeroes,
+  voiceRecognitionPhrases,
+  type VoiceMode,
+} from './voice';
 
 const mode: VoiceMode = { kind: 'ban', side: 'ally' };
 const ids = (heroes: Hero[]) => heroes.map((hero) => hero.id);
@@ -61,6 +67,40 @@ describe('voice command parser', () => {
     expect(ids(parse('blue ban nanna').commands[0].heroes)).toEqual(['nana']);
     expect(ids(parse('blue ban funny').commands[0].heroes)).toEqual(['fanny']);
     expect(ids(parse('blue ban cloud').commands[0].heroes)).toEqual(['claude']);
+  });
+
+  it('handles Indian and British English hero-name variants', () => {
+    expect(ids(parse('blue ban glue').commands[0].heroes)).toEqual(['gloo']);
+    expect(ids(parse('blue ban glo').commands[0].heroes)).toEqual(['gloo']);
+    expect(ids(parse('blue ban belrick').commands[0].heroes)).toEqual(['belerick']);
+    expect(ids(parse('blue ban beleric').commands[0].heroes)).toEqual(['belerick']);
+    expect(ids(parse('blue ban bell rick').commands[0].heroes)).toEqual(['belerick']);
+    expect(ids(parse('blue ban dora').commands[0].heroes)).toEqual(['eudora']);
+    expect(ids(parse('blue ban you dora').commands[0].heroes)).toEqual(['eudora']);
+    expect(ids(parse('blue ban editor').commands[0].heroes)).toEqual(['eudora']);
+    expect(ids(parse('blue ban beatrice').commands[0].heroes)).toEqual(['beatrix']);
+  });
+
+  it('does not treat a common word as a bare hero command', () => {
+    expect(parse('editor').commands).toHaveLength(0);
+  });
+
+  it('suggests hero candidates when a command cannot be resolved', () => {
+    const suggestions = suggestVoiceHeroes('blue ban glue', 3);
+    expect(suggestions[0].hero.id).toBe('gloo');
+
+    const bad = suggestVoiceHeroes('blue ban completely-unknown', 3);
+    expect(bad).toHaveLength(0);
+  });
+
+  it('builds a hero vocabulary for contextual biasing', () => {
+    const phrases = voiceRecognitionPhrases();
+    expect(phrases).toContain('Belerick');
+    expect(phrases).toContain('Gloo');
+    expect(phrases).toContain('Eudora');
+    expect(phrases).toContain('blue bans');
+    expect(phrases).not.toContain('editor');
+    expect(phrases).not.toContain('glue');
   });
 
   it('accepts side or action after the hero name', () => {

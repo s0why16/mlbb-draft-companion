@@ -4,6 +4,14 @@ import { normalizeQuery } from './search';
 
 export type VoiceKind = 'ban' | 'pick';
 
+export const VOICE_LANGUAGES = [
+  { id: 'en-IN', label: 'English (India)' },
+  { id: 'en-GB', label: 'English (UK)' },
+  { id: 'en-US', label: 'English (US)' },
+] as const;
+
+export type VoiceLanguage = (typeof VOICE_LANGUAGES)[number]['id'];
+
 export interface VoiceMode {
   kind: VoiceKind;
   side: Team;
@@ -293,10 +301,50 @@ const FUZZY_RISK_WORDS = new Set([
   'dig',
   'jaw',
   'bean',
+  'editor',
+  'editors',
 ]);
 
 const STRONG_MATCH = 650;
 const FUZZY_MATCH = 300;
+
+/**
+ * Additional voice-only spellings. These are kept out of the generated hero
+ * data so a data refresh cannot overwrite the accent variants.
+ */
+const EXTRA_ALIASES: Record<string, string[]> = {
+  belerick: [
+    'bel',
+    'belrick',
+    'beleric',
+    'belerik',
+    'bellrick',
+    'berlick',
+    'bellric',
+    'belrik',
+    'bell rick',
+    'belle rick',
+    'bel erick',
+  ],
+  beatrix: ['bea', 'beatrice', 'bea trix'],
+  gloo: ['gloo', 'glue', 'glo', 'glew', 'gulu'],
+  eudora: [
+    'eud',
+    'dora',
+    'yudora',
+    'audora',
+    'udora',
+    'edora',
+    'eudra',
+    'eudoria',
+    'eudoro',
+    'eudorah',
+    'you dora',
+    'u dora',
+    'editor',
+    'editors',
+  ],
+};
 
 interface HeroTerm {
   hero: Hero;
@@ -304,7 +352,11 @@ interface HeroTerm {
 }
 
 const HERO_TERMS: HeroTerm[] = HEROES.flatMap((hero) => {
-  const terms = new Set([hero.name, ...hero.aliases].map(normalizeQuery).filter(Boolean));
+  const terms = new Set(
+    [hero.name, ...hero.aliases, ...(EXTRA_ALIASES[hero.id] ?? [])]
+      .map(normalizeQuery)
+      .filter(Boolean),
+  );
   return [...terms].map((term) => ({ hero, term }));
 });
 
@@ -326,6 +378,44 @@ function phoneticKey(value: string): string {
     .replace(/[aeiouy]/g, '')
     .replace(/(.)\1+/g, '$1');
   PHONETIC_CACHE.set(value, key);
+  return key;
+}
+
+const ACCENT_CACHE = new Map<string, string>();
+const CONSONANT_CACHE = new Map<string, string>();
+
+/**
+ * Collapse the substitutions that commonly survive an Indian or British
+ * English accent on the way through a speech recognizer. This is deliberately
+ * broader than normal spelling: it is only used after exact and prefix
+ * matching have failed.
+ */
+function accentKey(value: string): string {
+  const cached = ACCENT_CACHE.get(value);
+  if (cached !== undefined) return cached;
+  const key = value
+    .replace(/[^a-z]/g, '')
+    .replace(/ph/g, 'p')
+    .replace(/th/g, 't')
+    .replace(/ck/g, 'k')
+    .replace(/q/g, 'k')
+    .replace(/x/g, 'ks')
+    .replace(/z/g, 's')
+    .replace(/v/g, 'w')
+    .replace(/f/g, 'p')
+    .replace(/r(?=[^aeiou]|$)/g, '')
+    .replace(/(.)\1+/g, '$1');
+  ACCENT_CACHE.set(value, key);
+  return key;
+}
+
+function consonantKey(value: string): string {
+  const cached = CONSONANT_CACHE.get(value);
+  if (cached !== undefined) return cached;
+  const key = accentKey(value)
+    .replace(/[aeiouy]/g, '')
+    .replace(/(.)\1+/g, '$1');
+  CONSONANT_CACHE.set(value, key);
   return key;
 }
 
@@ -360,6 +450,9 @@ function scoreTerm(term: string, query: string): number {
   if (query.length >= 4 && term.includes(query)) {
     return 680 - Math.min(160, term.indexOf(query) * 10);
   }
+  if (query.length >= 4 && term.endsWith(query)) {
+    return 600 - Math.min(120, (term.length - query.length) * 8);
+  }
   if (query.length >= 4) {
     const budget = query.length >= 6 ? 2 : 1;
     const distance = levenshtein(term, query);
@@ -371,6 +464,23 @@ function scoreTerm(term: string, query: string): number {
     if (queryKey.length >= 3 && queryKey === termKey) {
       const distance = levenshtein(term, query);
       return Math.max(FUZZY_MATCH, 400 - distance * 25);
+    }
+  }
+  if (query.length >= 4) {
+    const queryAccent = accentKey(query);
+    const termAccent = accentKey(term);
+    if (queryAccent.length >= 3 && queryAccent === termAccent) {
+      const distance = levenshtein(term, query);
+      return Math.max(FUZZY_MATCH + 40, 500 - distance * 24);
+    }
+    const queryConsonants = consonantKey(query);
+    const termConsonants = consonantKey(term);
+    if (
+      queryConsonants.length >= 2 &&
+      queryConsonants === termConsonants &&
+      queryConsonants[0] === termConsonants[0]
+    ) {
+      return 420 - Math.min(80, Math.abs(term.length - query.length) * 10);
     }
   }
   return 0;
@@ -399,6 +509,91 @@ function heroMatchesFor(query: string): HeroMatch[] {
     (a, b) => b.score - a.score || b.hero.meta - a.hero.meta || a.hero.name.localeCompare(b.hero.name),
   );
 }
+
+export interface VoiceHeroSuggestion {
+  hero: Hero;
+  score: number;
+}
+
+/**
+ * Returns the strongest hero guesses for a transcript that did not produce a
+ * complete command. The dock uses this to offer tappable "Did you mean…" chips
+ * instead of failing silently.
+ */
+export function suggestVoiceHeroes(transcript: string, limit = 3): VoiceHeroSuggestion[] {
+  const tokens = tokenize(transcript).filter(
+    (token) =>
+      !SIDE_WORDS[token] &&
+      !ACTION_WORDS[token] &&
+      !FILLER_WORDS.has(token) &&
+      !STOP_WORDS.has(token),
+  );
+  const byHero = new Map<string, VoiceHeroSuggestion>();
+  for (let index = 0; index < tokens.length; index++) {
+    const maxLength = Math.min(4, tokens.length - index);
+    for (let length = maxLength; length >= 1; length--) {
+      const query = tokens.slice(index, index + length).join(' ');
+      const matches = heroMatchesFor(query);
+      for (const match of matches.slice(0, 4)) {
+        if (match.score < FUZZY_MATCH) continue;
+        const current = byHero.get(match.hero.id);
+        if (!current || match.score > current.score) {
+          byHero.set(match.hero.id, { hero: match.hero, score: match.score });
+        }
+      }
+    }
+  }
+  return [...byHero.values()]
+    .sort((a, b) => b.score - a.score || b.hero.meta - a.hero.meta || a.hero.name.localeCompare(b.hero.name))
+    .slice(0, limit);
+}
+
+const COMMAND_PHRASES = [
+  'blue ban',
+  'blue bans',
+  'red ban',
+  'red bans',
+  'blue pick',
+  'blue picks',
+  'red pick',
+  'red picks',
+  'undo',
+  'stop listening',
+];
+
+const COMMON_WORD_PHRASES = new Set(['editor', 'editors', 'glue', 'gulu', 'dora']);
+
+/**
+ * Contextual-biasing vocabulary for browsers that support
+ * SpeechRecognition.phrases. Hero names are uncommon proper nouns, so biasing
+ * the recognizer toward them fixes errors like "Belerick" -> "Beatrix".
+ * Short aliases and common English words are skipped so the boost cannot make
+ * background chatter look like a hero name.
+ */
+export function voiceRecognitionPhrases(): string[] {
+  const phrases = new Set<string>();
+  const seen = new Set<string>();
+  const add = (value: string, minimum = 5, allowCommon = false) => {
+    const trimmed = value.trim();
+    if (trimmed.length < minimum) return;
+    const key = trimmed.toLowerCase();
+    if (!allowCommon && (COMMON_WORD_PHRASES.has(key) || FUZZY_RISK_WORDS.has(key))) return;
+    if (seen.has(key)) return;
+    seen.add(key);
+    phrases.add(trimmed);
+  };
+
+  for (const phrase of COMMAND_PHRASES) add(phrase, 3, true);
+  for (const hero of HEROES) {
+    add(hero.name, 3, true);
+    for (const alias of hero.aliases) add(alias, 5);
+  }
+  for (const aliases of Object.values(EXTRA_ALIASES)) {
+    for (const alias of aliases) add(alias, 4);
+  }
+  return [...phrases];
+}
+
 
 function tokenize(text: string): string[] {
   return text
