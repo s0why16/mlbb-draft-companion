@@ -24,9 +24,11 @@ export interface VoiceCommand {
   /** True when the user said "ban" or "pick" explicitly. */
   hasAction: boolean;
   heroes: Hero[];
+  /** Present when the command came from spell-by-letter mode. */
+  spelled?: string | null;
 }
 
-export type VoiceIntent = 'apply' | 'mode' | 'undo' | 'stop' | 'help' | 'none';
+export type VoiceIntent = 'apply' | 'mode' | 'undo' | 'undo-call' | 'stop' | 'help' | 'none';
 
 export interface VoiceParseResult {
   intent: VoiceIntent;
@@ -35,6 +37,8 @@ export interface VoiceParseResult {
   unmatched: string[];
   score: number;
   conflict: string | null;
+  /** The decoded letters when the user said "spell ...". */
+  spelled?: string | null;
 }
 
 export interface VoicePlacementRequest {
@@ -58,6 +62,28 @@ export interface VoiceSkip {
 export interface VoicePlacementPlan {
   placements: VoicePlacement[];
   skipped: VoiceSkip[];
+}
+
+/** Pairs that are acoustically close enough that a recognizer can swap them. */
+export const CONFUSABLE_HERO_PAIRS: ReadonlyArray<readonly [string, string]> = [
+  ['aulus', 'alice'],
+  ['hirara', 'hayabusa'],
+  ['gloo', 'hayabusa'],
+];
+
+export function findConfusablePair(heroes: Hero[]): [Hero, Hero] | null {
+  const byId = new Map(heroes.map((hero) => [hero.id, hero]));
+  for (const [firstId, secondId] of CONFUSABLE_HERO_PAIRS) {
+    const first = byId.get(firstId);
+    const second = byId.get(secondId);
+    if (first && second) return [first, second];
+  }
+  return null;
+}
+
+/** "and"/"then" means the player intentionally listed two heroes. */
+export function hasExplicitBatchSeparator(transcript: string): boolean {
+  return /\b(?:and|then|next|after\s+that)\b/i.test(transcript);
 }
 
 const SIDE_WORDS: Record<string, Team> = {
@@ -303,6 +329,7 @@ const FUZZY_RISK_WORDS = new Set([
   'bean',
   'editor',
   'editors',
+  'loss',
 ]);
 
 const STRONG_MATCH = 650;
@@ -327,7 +354,34 @@ const EXTRA_ALIASES: Record<string, string[]> = {
     'bel erick',
   ],
   beatrix: ['bea', 'beatrice', 'bea trix'],
-  gloo: ['gloo', 'glue', 'glo', 'glew', 'gulu'],
+  gloo: ['gloo', 'glue', 'glo', 'glow', 'gloom', 'gulu', 'glu', 'glew'],
+  aulus: ['aulus', 'aulos', 'allus'],
+  alice: ['alice', 'alis', 'alise', 'aliss'],
+  hylos: [
+    'hylos',
+    'high loss',
+    'hi loss',
+    'highlos',
+    'hiloss',
+    'hylus',
+    'hilos',
+    'hy loss',
+    'hi los',
+    'high lohs',
+    'hylo',
+    'hy los',
+    'loss',
+  ],
+  hirara: ['hirara', 'herara', 'hirarra', 'herarra', 'hiraraa', 'hira ra', 'he rara'],
+  hayabusa: [
+    'hayabusa',
+    'haya',
+    'haya busa',
+    'hiya busa',
+    'hi bus',
+    'hiya',
+    'hayabusaa',
+  ],
   eudora: [
     'eud',
     'dora',
@@ -478,7 +532,8 @@ function scoreTerm(term: string, query: string): number {
     if (
       queryConsonants.length >= 2 &&
       queryConsonants === termConsonants &&
-      queryConsonants[0] === termConsonants[0]
+      queryConsonants[0] === termConsonants[0] &&
+      query.slice(0, 2) === term.slice(0, 2)
     ) {
       return 420 - Math.min(80, Math.abs(term.length - query.length) * 10);
     }
@@ -613,6 +668,16 @@ function includesPhrase(tokens: string[], phrase: string[]): boolean {
   return false;
 }
 
+const UNDO_CALL_PHRASES = [
+  ['undo', 'call'],
+  ['undo', 'the', 'call'],
+  ['undo', 'last', 'call'],
+  ['undo', 'batch'],
+  ['undo', 'last', 'batch'],
+  ['remove', 'the', 'last', 'call'],
+  ['clear', 'the', 'call'],
+];
+
 const UNDO_PHRASES = [
   ['undo'],
   ['undo', 'that'],
@@ -634,8 +699,209 @@ const STOP_PHRASES = [
   ['never', 'mind'],
 ];
 
+const SPELL_TRIGGERS = new Set(['spell', 'spells', 'spelled', 'spelling', 'spelt', 'letters']);
+
+const LETTER_VALUES: Record<string, string> = {
+  ay: 'a',
+  bee: 'b',
+  be: 'b',
+  see: 'c',
+  sea: 'c',
+  cee: 'c',
+  dee: 'd',
+  ee: 'e',
+  eff: 'f',
+  ef: 'f',
+  gee: 'g',
+  aitch: 'h',
+  haitch: 'h',
+  eye: 'i',
+  jay: 'j',
+  kay: 'k',
+  ell: 'l',
+  el: 'l',
+  em: 'm',
+  en: 'n',
+  oh: 'o',
+  owe: 'o',
+  pee: 'p',
+  cue: 'q',
+  queue: 'q',
+  are: 'r',
+  ar: 'r',
+  ess: 's',
+  es: 's',
+  tee: 't',
+  tea: 't',
+  you: 'u',
+  vee: 'v',
+  doubleyou: 'w',
+  ex: 'x',
+  why: 'y',
+  wye: 'y',
+  zee: 'z',
+  zed: 'z',
+};
+
+const NATO_VALUES: Record<string, string> = {
+  alpha: 'a',
+  bravo: 'b',
+  charlie: 'c',
+  delta: 'd',
+  echo: 'e',
+  foxtrot: 'f',
+  golf: 'g',
+  hotel: 'h',
+  india: 'i',
+  juliet: 'j',
+  juliett: 'j',
+  kilo: 'k',
+  lima: 'l',
+  mike: 'm',
+  november: 'n',
+  oscar: 'o',
+  papa: 'p',
+  quebec: 'q',
+  romeo: 'r',
+  sierra: 's',
+  tango: 't',
+  uniform: 'u',
+  victor: 'v',
+  whiskey: 'w',
+  xray: 'x',
+  yankee: 'y',
+  zulu: 'z',
+};
+
+function letterValue(token: string): string | null {
+  if (/^[a-z]$/.test(token)) return token;
+  return LETTER_VALUES[token] ?? NATO_VALUES[token] ?? null;
+}
+
+function decodeSpelling(tokens: string[]): string {
+  let result = '';
+  for (let index = 0; index < tokens.length; index++) {
+    const token = tokens[index];
+    if (token === 'double') {
+      const next = tokens[index + 1];
+      if (next === 'you' || next === 'u') {
+        result += 'w';
+        index += 1;
+        continue;
+      }
+      const doubled = next ? letterValue(next) : null;
+      if (doubled) {
+        result += doubled + doubled;
+        index += 1;
+      }
+      continue;
+    }
+    if (token === 'it') continue;
+    const letter = letterValue(token);
+    if (letter) {
+      result += letter;
+      continue;
+    }
+    if (token.length >= 2 && !FILLER_WORDS.has(token) && !STOP_WORDS.has(token)) {
+      result += token.replace(/[^a-z]/g, '');
+    }
+  }
+  return result;
+}
+
+function parseSpellCommand(tokens: string[], fallback: VoiceMode, heard: string): VoiceParseResult | null {
+  const spellIndex = tokens.findIndex((token) => SPELL_TRIGGERS.has(token));
+  if (spellIndex === -1) return null;
+
+  const sides = new Set<Team>();
+  const kinds = new Set<VoiceKind>();
+  for (const token of tokens) {
+    const side = SIDE_WORDS[token];
+    if (side) sides.add(side);
+    const kind = ACTION_WORDS[token];
+    if (kind) kinds.add(kind);
+  }
+  if (sides.size > 1) {
+    return {
+      intent: 'none',
+      commands: [],
+      heard,
+      unmatched: [],
+      score: 0,
+      conflict: 'I heard both Blue and Red in one phrase. Say one side at a time.',
+      spelled: null,
+    };
+  }
+  if (kinds.size > 1) {
+    return {
+      intent: 'none',
+      commands: [],
+      heard,
+      unmatched: [],
+      score: 0,
+      conflict: 'I heard both ban and pick in one phrase. Say one phase at a time.',
+      spelled: null,
+    };
+  }
+
+  const explicitSide = [...sides][0] ?? null;
+  const explicitKind = [...kinds][0] ?? null;
+  const mode: VoiceMode = {
+    side: explicitSide ?? fallback.side,
+    kind: explicitKind ?? fallback.kind,
+  };
+  const spellTokens = tokens
+    .slice(spellIndex + 1)
+    .filter((token) => !SIDE_WORDS[token] && !ACTION_WORDS[token]);
+  const spelled = decodeSpelling(spellTokens);
+  if (!spelled) {
+    return {
+      intent: 'none',
+      commands: [],
+      heard,
+      unmatched: [],
+      score: 0,
+      conflict: null,
+      spelled: '',
+    };
+  }
+
+  const candidate = heroMatchesFor(spelled).find((entry) => entry.score >= FUZZY_MATCH);
+  if (!candidate) {
+    return {
+      intent: 'none',
+      commands: [],
+      heard,
+      unmatched: [spelled],
+      score: 0,
+      conflict: null,
+      spelled,
+    };
+  }
+
+  return {
+    intent: 'apply',
+    commands: [
+      {
+        mode,
+        explicitMode: Boolean(explicitSide || explicitKind),
+        // Spelling is an intentional command even when the side/phase is implied.
+        hasAction: true,
+        heroes: [candidate.hero],
+        spelled,
+      },
+    ],
+    heard,
+    unmatched: [],
+    score: candidate.score + 60,
+    conflict: null,
+    spelled,
+  };
+}
+
 function commandIntent(tokens: string[]): VoiceIntent | null {
   const phraseTokens = tokens.filter((token) => !FILLER_WORDS.has(token));
+  if (UNDO_CALL_PHRASES.some((phrase) => includesPhrase(phraseTokens, phrase))) return 'undo-call';
   if (UNDO_PHRASES.some((phrase) => includesPhrase(phraseTokens, phrase))) return 'undo';
 
   const exactStop =
@@ -790,6 +1056,9 @@ export function parseVoiceCommand(transcript: string, fallback: VoiceMode): Voic
   if (!tokens.length) {
     return { intent: 'none', commands: [], heard, unmatched: [], score: 0, conflict: null };
   }
+
+  const spelled = parseSpellCommand(tokens, fallback, heard);
+  if (spelled) return spelled;
 
   // "then"/"next" and "and <side>" let a player log both sides in one breath:
   // "blue ban Lance then red pick Fanny" or "blue ban Lance and red pick Fanny".

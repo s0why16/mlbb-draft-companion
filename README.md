@@ -108,8 +108,10 @@ A floating mic dock appears on the Ban and Draft screens. It logs bans and picks
 | “Red picks Fanny” | Red pick S1 = Fanny |
 | “Blue bans” then “Lance” | Arms Blue bans; bare hero names fill the next slots |
 | “Blue bans Lance and Selena” | Fills consecutive blue ban slots |
+| “Blue ban spell Hylos” / “Blue ban spell H-L-Y-O-S” | Resolves a name letter by letter when normal recognition fails |
 | “They banned Tigreal” / “We picked Fanny” | Natural pronouns and past tense also work |
 | “Undo” | Removes the last voice entry |
+| “Undo call” | Removes every entry from the last voice batch |
 | “Stop listening” | Stops the microphone |
 
 - **Blue is your team, Red is the opponent.** The app uses the same mapping everywhere.
@@ -117,8 +119,11 @@ A floating mic dock appears on the Ban and Draft screens. It logs bans and picks
 - **Always-on:** tap the mic or press `V`. It keeps listening across Ban → Draft and stops when you leave those screens.
 - **Push-to-talk:** open the dock and hold “Hold to talk” while speaking. It is disabled while always-on is active.
 - **Hero-name boost:** on desktop Chrome 142+, the dock uses contextual biasing to teach the recognizer every hero name and alias. This fixes proper-noun errors such as “Belerick” → “Beatrix” and “Eudora” → “editor”. It uses the on-device model for the selected accent, downloads that model the first time it is needed, and automatically falls back to cloud recognition. Mobile Chrome does not expose this API yet; use the accent selector and correction there.
-- **Misheard names:** the parser reuses hero aliases and adds fuzzy, phonetic, vowel-tolerant, and Indian/British English variants (`Minsi`, `Lance a lot`, `cloud` → Claude, `glue` → Gloo, `belrick` → Belerick, `dora` → Eudora). It considers up to five recognizer alternatives.
+- **Misheard names:** the parser reuses hero aliases and adds fuzzy, phonetic, vowel-tolerant, and Indian/British English variants (`Minsi`, `Lance a lot`, `cloud` → Claude, `glue` → Gloo, `belrick` → Belerick, `dora` → Eudora, `high loss` → Hylos). It considers up to five recognizer alternatives.
+- **Spell by letter:** say “blue ban spell Hylos” or “blue ban spell H-L-Y-O-S”. Letter names (`aitch`, `ell`, `why`, `zed`), NATO words (`hotel yankee lima oscar sierra`), and “double” are understood. The same thing works in the typed command box.
+- **Confusable pairs:** Aulus/Alice, Hirara/Hayabusa, and Gloo/Hayabusa are checked for accidental double placements. If the recognizer returns both names without an explicit “and”, the dock asks you to pick one instead of filling two slots. Say “Hirara and Hayabusa” to log both intentionally.
 - **Correction:** after a voice entry, tap **Correct** to choose the hero you actually said. The app remembers that phrase for next time, so the same microphone/recognizer mistake is fixed automatically. A typed command fallback is also available in the dock.
+- **Undo call:** when a batch contains more than one hero, the dock shows **Undo call** to clear the whole batch at once.
 - **Diagnostics:** the dock shows the exact transcript, all recognizer alternatives, and confidence. When a command cannot be resolved, it shows tappable “Did you mean…” candidates instead of failing silently.
 - **Safety:** a bare hero name is accepted for 20 seconds after a phase call (for example “blue bans” or “red picks”) or a mode chip, so background chatter does not fill the board. Saying only “I’m blue” changes the side but still requires a ban/pick call. Every voice entry can be undone, and conflicting phrases are rejected with a prompt to say one side at a time or use “then”.
 - **Browser support:** Chrome/Edge desktop is recommended. Android Chrome works; Safari has partial support; Firefox does not expose the Web Speech API. The page must be served over HTTPS or localhost. Hero-name boost needs desktop Chrome 142+ and may download Chrome’s on-device model the first time.

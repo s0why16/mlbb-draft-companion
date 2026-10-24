@@ -438,7 +438,7 @@ export function VoiceDock() {
             <input
               value={typed}
               onChange={(event) => setTyped(event.target.value)}
-              placeholder="Or type: blue ban Lance"
+              placeholder="Or type: blue ban Lance / spell Hylos"
               aria-label="Type a voice command"
               autoComplete="off"
             />
@@ -497,6 +497,15 @@ export function VoiceDock() {
             </div>
           )}
 
+          {voice.lastBatchSize > 1 && (
+            <div className="voice-batch">
+              <span>{voice.lastBatchSize} entries in the last call</span>
+              <button type="button" onClick={voice.undoLastCall}>
+                <Undo2 size={12} /> Undo call
+              </button>
+            </div>
+          )}
+
           {latestPlacement && (
             <div className="voice-last">
               <div>
@@ -522,16 +531,18 @@ export function VoiceDock() {
             <div className="voice-help__examples">
               <span>“Blue ban Lance”</span>
               <span>“Red picks Fanny”</span>
-              <span>“Blue bans” then hero names</span>
-              <span>“Undo” / “Stop listening”</span>
+              <span>“Blue bans” then names</span>
+              <span>“Blue ban spell Hylos”</span>
+              <span>“Spell H-L-Y-O-S”</span>
+              <span>“Undo call” / “Stop listening”</span>
             </div>
             <p>
               Blue is your team. Bare hero names work for 20 seconds after a call like
               “blue bans” or a mode chip. Pick your accent above; Indian and UK English use
               different recognizer models. On desktop Chrome, Hero boost biases recognition
               toward every hero name. If a hero is still wrong, tap Correct — the app remembers
-              that phrase. Audio is transcribed by your browser; this app only keeps the text in
-              memory.
+              that phrase. For names that never stick, say “spell” followed by the letters.
+              Audio is transcribed by your browser; this app only keeps the text in memory.
             </p>
           </div>
 

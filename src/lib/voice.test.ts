@@ -3,6 +3,8 @@ import type { Hero } from '../types';
 import { emptyDraft } from './storage';
 import { heroById } from './engine';
 import {
+  findConfusablePair,
+  hasExplicitBatchSeparator,
   parseVoiceCommand,
   planVoicePlacements,
   suggestVoiceHeroes,
@@ -79,6 +81,66 @@ describe('voice command parser', () => {
     expect(ids(parse('blue ban you dora').commands[0].heroes)).toEqual(['eudora']);
     expect(ids(parse('blue ban editor').commands[0].heroes)).toEqual(['eudora']);
     expect(ids(parse('blue ban beatrice').commands[0].heroes)).toEqual(['beatrix']);
+    expect(ids(parse('blue ban alis').commands[0].heroes)).toEqual(['alice']);
+    expect(ids(parse('blue ban aulos').commands[0].heroes)).toEqual(['aulus']);
+    expect(ids(parse('blue ban herara').commands[0].heroes)).toEqual(['hirara']);
+    expect(ids(parse('blue ban hirarra').commands[0].heroes)).toEqual(['hirara']);
+    expect(ids(parse('blue ban hiya busa').commands[0].heroes)).toEqual(['hayabusa']);
+  });
+
+  it('recognises Hylos pronunciation variants and ignores bare "loss"', () => {
+    for (const phrase of [
+      'blue ban hylos',
+      'blue ban high loss',
+      'blue ban hi loss',
+      'blue ban highlos',
+      'blue ban hiloss',
+      'blue ban hylus',
+      'blue ban hilos',
+      'blue ban hy loss',
+      'blue ban hi los',
+      'blue ban loss',
+    ]) {
+      expect(ids(parse(phrase).commands[0].heroes), phrase).toEqual(['hylos']);
+    }
+    expect(parse('loss').commands).toHaveLength(0);
+  });
+
+  it('identifies confusable pairs and explicit batch separators', () => {
+    const pair = findConfusablePair([hero('hirara'), hero('hayabusa')]);
+    expect(pair?.map((entry) => entry.id)).toEqual(['hirara', 'hayabusa']);
+    expect(findConfusablePair([hero('hirara'), hero('gloo')])).toBeNull();
+    expect(hasExplicitBatchSeparator('blue ban hirara and hayabusa')).toBe(true);
+    expect(hasExplicitBatchSeparator('blue ban hirara then hayabusa')).toBe(true);
+    expect(hasExplicitBatchSeparator('blue ban hirara hayabusa')).toBe(false);
+  });
+
+  it('supports spell-by-letter commands and letter names', () => {
+    const cases = [
+      ['blue ban spell hylos', 'hylos', 'hylos'],
+      ['blue ban spell h l y o s', 'hlyos', 'hylos'],
+      ['blue ban spell aitch why ell oh ess', 'hylos', 'hylos'],
+      ['blue ban spell hotel yankee lima oscar sierra', 'hylos', 'hylos'],
+      ['blue ban spell a u l u s', 'aulus', 'aulus'],
+      ['blue ban spell a l i c e', 'alice', 'alice'],
+      ['blue ban spell h i r a r a', 'hirara', 'hirara'],
+      ['blue ban spell h l y o s please', 'hlyos', 'hylos'],
+      ['spell hylos', 'hylos', 'hylos'],
+    ] as const;
+    for (const [phrase, spelled, id] of cases) {
+      const result = parse(phrase);
+      expect(result.intent, phrase).toBe('apply');
+      expect(result.spelled, phrase).toBe(spelled);
+      expect(ids(result.commands[0].heroes), phrase).toEqual([id]);
+    }
+  });
+
+  it('reports an unmatched spelling without inventing a hero', () => {
+    const result = parse('blue ban spell zzzz');
+    expect(result.intent).toBe('none');
+    expect(result.spelled).toBe('zzzz');
+    expect(result.unmatched).toEqual(['zzzz']);
+    expect(parse('blue ban spell').spelled).toBe('');
   });
 
   it('does not treat a common word as a bare hero command', () => {
@@ -165,6 +227,8 @@ describe('voice command parser', () => {
 
   it('recognises voice commands', () => {
     expect(parse('undo').intent).toBe('undo');
+    expect(parse('undo call').intent).toBe('undo-call');
+    expect(parse('undo the last call').intent).toBe('undo-call');
     expect(parse('remove the last one').intent).toBe('undo');
     expect(parse('stop listening').intent).toBe('stop');
     expect(parse('stop').intent).toBe('stop');

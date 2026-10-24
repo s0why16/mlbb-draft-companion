@@ -839,6 +839,47 @@
   line-height: 1.45;
 }
 
+.voice-batch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+  padding: 6px 8px;
+  border: 1px solid rgba(246, 205, 118, 0.25);
+  border-radius: 8px;
+  background: rgba(246, 205, 118, 0.045);
+}
+
+.voice-batch span {
+  color: var(--gold-bright);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.voice-batch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid rgba(246, 205, 118, 0.35);
+  border-radius: 7px;
+  background: rgba(246, 205, 118, 0.08);
+  color: var(--gold-bright);
+  font-family: var(--font-mono);
+  font-size: 7px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.voice-batch button:hover {
+  border-color: var(--gold);
+  background: rgba(246, 205, 118, 0.14);
+}
+
 .voice-last {
   display: flex;
   align-items: center;
@@ -1020,6 +1061,15 @@
 
   .voice-last__actions button {
     flex: 1;
+    justify-content: center;
+  }
+
+  .voice-batch {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .voice-batch button {
     justify-content: center;
   }
 

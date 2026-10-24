@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { Draft, Team } from '../types';
+import type { Draft, Hero, Team } from '../types';
 import { RANK_BY_ID } from '../data/meta';
 import { useGame } from './GameContext';
 import { useToast } from '../components/Toast';
@@ -19,6 +19,8 @@ import {
   type SpeechStatus,
 } from '../hooks/useSpeechRecognition';
 import {
+  findConfusablePair,
+  hasExplicitBatchSeparator,
   parseVoiceCommand,
   planVoicePlacements,
   suggestVoiceHeroes,
@@ -47,6 +49,7 @@ export interface VoiceFeedback {
   alternatives: SpeechAlternative[];
   candidates: VoiceHeroSuggestion[];
   candidateMode: VoiceMode | null;
+  spelled: string | null;
 }
 
 interface VoiceContextValue {
@@ -67,6 +70,7 @@ interface VoiceContextValue {
   language: VoiceLanguage;
   vocabularyBoost: boolean;
   canCorrect: boolean;
+  lastBatchSize: number;
   setMode: (mode: VoiceMode) => void;
   setLanguage: (language: VoiceLanguage) => void;
   toggleVocabularyBoost: () => void;
@@ -75,6 +79,7 @@ interface VoiceContextValue {
   startPushToTalk: () => void;
   stopPushToTalk: () => void;
   undoLast: () => void;
+  undoLastCall: () => void;
   correctLast: (heroId: string) => void;
   applyCandidate: (heroId: string) => void;
   applyTextCommand: (text: string) => void;
@@ -98,6 +103,7 @@ const EMPTY_FEEDBACK: VoiceFeedback = {
   alternatives: [],
   candidates: [],
   candidateMode: null,
+  spelled: null,
 };
 
 function defaultLanguage(): VoiceLanguage {
@@ -203,11 +209,13 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<VoiceLanguage>(loadLanguage);
   const [vocabularyBoost, setVocabularyBoost] = useState<boolean>(loadBoost);
   const [voiceActivated, setVoiceActivated] = useState(false);
+  const [lastBatchSize, setLastBatchSize] = useState(0);
 
   const modeRef = useRef(mode);
   const armedRef = useRef(false);
   const draftRef = useRef(state.draft);
   const historyRef = useRef<VoicePlacement[]>([]);
+  const lastBatchRef = useRef<VoicePlacement[]>([]);
   const profileRef = useRef(profile);
   const pttRef = useRef(false);
   const finalReceivedRef = useRef(false);
@@ -287,6 +295,13 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     nextSlots[entry.index] = null;
     draftRef.current = nextDraft;
 
+    const remainingBatch = lastBatchRef.current.filter(
+      (placement) => !matchesPlacement(placement, entry),
+    );
+    lastBatchRef.current = remainingBatch;
+    setLastBatchSize(remainingBatch.length);
+    lastBatchSizeRef.current = remainingBatch.length;
+
     toast.push(`${entry.hero.name} removed`, {
       tone: 'info',
       detail: `${sideLabel(entry.side)} ${kindLabel(entry.kind)} ${
@@ -294,6 +309,70 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       } is open again.`,
     });
   }, [dispatch, toast]);
+
+  const undoLastCall = useCallback(() => {
+    const batch = lastBatchRef.current;
+    if (batch.length <= 1) {
+      undoLast();
+      return;
+    }
+
+    const removed: VoicePlacement[] = [];
+    for (const entry of [...batch].reverse()) {
+      const slots =
+        entry.kind === 'ban' ? draftRef.current.bans[entry.side] : draftRef.current.picks[entry.side];
+      if (slots[entry.index] !== entry.hero.id) continue;
+
+      dispatch({
+        type: entry.kind === 'ban' ? 'SET_BAN' : 'SET_PICK',
+        team: entry.side,
+        index: entry.index,
+        heroId: null,
+      });
+
+      const nextDraft = cloneDraft(draftRef.current);
+      const nextSlots = entry.kind === 'ban' ? nextDraft.bans[entry.side] : nextDraft.picks[entry.side];
+      nextSlots[entry.index] = null;
+      draftRef.current = nextDraft;
+      removed.push(entry);
+    }
+
+    if (!removed.length) {
+      toast.push('Last voice call has already changed', {
+        tone: 'info',
+        detail: 'No slots from that call could be cleared.',
+      });
+      return;
+    }
+
+    const nextHistory = historyRef.current.filter(
+      (entry) => !removed.some((placement) => matchesPlacement(placement, entry)),
+    );
+    historyRef.current = nextHistory;
+    setHistory(nextHistory);
+
+    const remaining = batch.filter(
+      (entry) => !removed.some((placement) => matchesPlacement(placement, entry)),
+    );
+    lastBatchRef.current = remaining;
+    setLastBatchSize(remaining.length);
+    lastBatchSizeRef.current = remaining.length;
+    if (!remaining.length) lastHeardRef.current = '';
+
+    setFeedback((current) => ({
+      ...current,
+      message: `Removed ${removed.length} voice ${
+        removed.length === 1 ? 'entry' : 'entries'
+      } from the last call.`,
+    }));
+
+    toast.push('Last voice call undone', {
+      tone: 'info',
+      detail: `${removed.length} ${removed.length === 1 ? 'entry' : 'entries'} removed: ${removed
+        .map((placement) => `${placement.hero.name} · ${placementLabel(placement)}`)
+        .join(' · ')}.`,
+    });
+  }, [dispatch, toast, undoLast]);
 
   useEffect(() => {
     feedbackRef.current = feedback;
@@ -322,6 +401,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         candidates?: VoiceHeroSuggestion[];
         candidateMode?: VoiceMode | null;
         message?: string | null;
+        spelled?: string | null;
       } = {},
     ) => {
       const bansPerTeam = profileRef.current ? RANK_BY_ID[profileRef.current.rank].bansPerTeam : 5;
@@ -347,6 +427,8 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         arm();
         lastHeardRef.current = heard;
         lastBatchSizeRef.current = plan.placements.length;
+        lastBatchRef.current = plan.placements;
+        setLastBatchSize(plan.placements.length);
       }
 
       setFeedback({
@@ -361,6 +443,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         alternatives: meta.alternatives ?? [],
         candidates: meta.candidates ?? [],
         candidateMode: meta.candidateMode ?? null,
+        spelled: meta.spelled ?? null,
       });
 
       if (plan.placements.length === 1 && !plan.skipped.length) {
@@ -372,7 +455,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         toast.push(`${plan.placements.length} voice entries logged`, {
           detail: `${plan.placements
             .map((placement) => `${placement.hero.name} · ${placementLabel(placement)}`)
-            .join(' · ')} · Say “undo” to remove the last entry.`,
+            .join(' · ')} · Say “undo” or tap Undo call in the voice dock.`,
         });
       }
 
@@ -390,34 +473,55 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
     (alternatives: SpeechAlternative[]) => {
       if (!alternatives.length) return;
       const fallback = modeRef.current;
-      let best: { result: ReturnType<typeof parseVoiceCommand>; alternative: SpeechAlternative } | null = null;
-      for (const alternative of alternatives) {
-        const result = parseVoiceCommand(alternative.transcript, fallback);
+      const parsedAlternatives = alternatives.map((alternative) => {
+        let result = parseVoiceCommand(alternative.transcript, fallback);
+
+        // A previous correction teaches the app how this microphone/recognizer
+        // spells a hero. Apply it before conflict detection so the learned fix
+        // does not reappear as a conflicting recognizer alternative.
+        const correctedId = correctionsRef.current[normalizeQuery(result.heard)];
         if (
-          !best ||
-          result.score > best.result.score ||
-          (result.score === best.result.score && alternative.confidence > best.alternative.confidence)
+          correctedId &&
+          result.commands.length === 1 &&
+          result.commands[0].heroes.length === 1
         ) {
-          best = { result, alternative };
+          const corrected = heroById(correctedId);
+          if (corrected) {
+            result = {
+              ...result,
+              commands: [{ ...result.commands[0], heroes: [corrected] }],
+            };
+          }
+        }
+        return { alternative, result };
+      });
+      let best = parsedAlternatives[0];
+      for (const entry of parsedAlternatives) {
+        if (
+          entry.result.score > best.result.score ||
+          (entry.result.score === best.result.score &&
+            entry.alternative.confidence > best.alternative.confidence)
+        ) {
+          best = entry;
         }
       }
-      if (!best) return;
 
       let result = best.result;
 
-      // A previous correction teaches the app how this microphone/recognizer
-      // spells a hero. Only apply it when the learned phrase still resolves to
-      // a single hero, so it cannot rewrite a different multi-hero call.
-      const correctedId = correctionsRef.current[normalizeQuery(result.heard)];
-      if (correctedId && result.commands.length === 1 && result.commands[0].heroes.length === 1) {
-        const corrected = heroById(correctedId);
-        if (corrected) {
-          result = {
-            ...result,
-            commands: [{ ...result.commands[0], heroes: [corrected] }],
-          };
-        }
-      }
+      const showChoices = (heroes: Hero[], mode: VoiceMode, message: string) => {
+        const unique = [...new Map(heroes.map((hero) => [hero.id, hero])).values()];
+        finalReceivedRef.current = true;
+        setPanelOpen(true);
+        setFeedback({
+          ...EMPTY_FEEDBACK,
+          heard: result.heard,
+          message,
+          alternatives,
+          candidates: unique.map((hero) => ({ hero, score: 1200 })),
+          candidateMode: mode,
+          spelled: result.spelled ?? null,
+        });
+      };
 
       if (result.conflict) {
         finalReceivedRef.current = true;
@@ -427,11 +531,109 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
           heard: result.heard,
           message: result.conflict,
           alternatives,
+          spelled: result.spelled ?? null,
         });
         return;
       }
 
+      // A single transcript can contain both names when the recognizer inserts
+      // an extra hero. Ask instead of filling two ban slots. An explicit
+      // "A and B" batch still goes through normally.
+      for (const command of result.commands) {
+        if (command.heroes.length < 2) continue;
+        const pair = findConfusablePair(command.heroes);
+        if (pair && !hasExplicitBatchSeparator(result.heard)) {
+          showChoices(
+            pair,
+            command.mode,
+            `I heard both ${pair[0].name} and ${pair[1].name}. Pick the one you meant, or say “${pair[0].name} and ${pair[1].name}” to log both.`,
+          );
+          return;
+        }
+      }
+
+      // The browser can return different hero names as separate alternatives.
+      // When the top two are close, do not silently trust one of them.
+      if (
+        result.intent === 'apply' &&
+        parsedAlternatives.length > 1 &&
+        result.commands.every((command) => command.heroes.length <= 1)
+      ) {
+        const options = new Map<string, { hero: Hero; score: number; mode: VoiceMode }>();
+        for (const entry of parsedAlternatives) {
+          if (entry.result.intent !== 'apply') continue;
+          for (const command of entry.result.commands) {
+            for (const hero of command.heroes) {
+              const score = entry.result.score + entry.alternative.confidence * 100;
+              const current = options.get(hero.id);
+              if (!current || score > current.score) {
+                options.set(hero.id, { hero, score, mode: command.mode });
+              }
+            }
+          }
+        }
+        if (options.size > 1) {
+          const sorted = [...options.values()].sort(
+            (a, b) => b.score - a.score || b.hero.meta - a.hero.meta,
+          );
+          if (sorted[0].score - sorted[1].score <= 120) {
+            showChoices(
+              sorted.slice(0, 4).map((option) => option.hero),
+              sorted[0].mode,
+              `The recognizer heard ${sorted
+                .slice(0, 3)
+                .map((option) => option.hero.name)
+                .join(' or ')}. Pick the hero you meant.`,
+            );
+            return;
+          }
+        }
+      }
+
+      if (result.intent === 'apply' && result.spelled) {
+        const suggestions = suggestVoiceHeroes(result.spelled, 4);
+        if (
+          suggestions.length > 1 &&
+          suggestions[0].score - suggestions[1].score <= 80
+        ) {
+          showChoices(
+            suggestions.map((suggestion) => suggestion.hero),
+            result.commands[0]?.mode ?? fallback,
+            `The spelling “${result.spelled.toUpperCase()}” matched ${suggestions
+              .slice(0, 3)
+              .map((suggestion) => suggestion.hero.name)
+              .join(' or ')}. Pick the hero you meant.`,
+          );
+          return;
+        }
+      }
+
       if (result.intent === 'none') {
+        if (result.spelled === '') {
+          finalReceivedRef.current = true;
+          setPanelOpen(true);
+          setFeedback({
+            ...EMPTY_FEEDBACK,
+            heard: result.heard,
+            message: 'Say a hero name after “spell”, or spell the letters.',
+            alternatives,
+          });
+          return;
+        }
+        if (result.spelled) {
+          finalReceivedRef.current = true;
+          setPanelOpen(true);
+          setFeedback({
+            ...EMPTY_FEEDBACK,
+            heard: result.heard,
+            message: `Spelled “${result.spelled.toUpperCase()}” — no hero matched.`,
+            alternatives,
+            candidates: suggestVoiceHeroes(result.spelled, 3),
+            candidateMode: fallback,
+            spelled: result.spelled,
+          });
+          return;
+        }
         if (!result.unmatched.length) return;
         const candidates = suggestVoiceHeroes(result.heard, 3);
         if (!candidates.length) return;
@@ -444,12 +646,23 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
           alternatives,
           candidates,
           candidateMode: fallback,
+          spelled: result.spelled ?? null,
         });
         return;
       }
 
       finalReceivedRef.current = true;
 
+      if (result.intent === 'undo-call') {
+        setFeedback({
+          ...EMPTY_FEEDBACK,
+          heard: result.heard,
+          message: 'Undo last call requested.',
+          alternatives,
+        });
+        undoLastCall();
+        return;
+      }
       if (result.intent === 'undo') {
         setFeedback({
           ...EMPTY_FEEDBACK,
@@ -478,7 +691,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         setFeedback({
           ...EMPTY_FEEDBACK,
           heard: result.heard,
-          message: 'Say “blue bans” then hero names, “red pick Gusion”, “undo”, or “stop”.',
+          message: 'Say “blue bans” then hero names, “red pick Gusion”, “spell Hylos”, “undo”, or “stop”.',
           alternatives,
         });
         return;
@@ -548,8 +761,9 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
           heard: result.heard,
           message,
           alternatives,
-          candidates: suggestVoiceHeroes(result.heard, 3),
+          candidates: suggestVoiceHeroes(result.spelled ?? result.heard, 3),
           candidateMode,
+          spelled: result.spelled ?? null,
         });
         return;
       }
@@ -558,9 +772,15 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
         alternatives,
         candidates: [],
         candidateMode: null,
+        spelled: result.spelled ?? null,
+        message: result.spelled
+          ? `Spelled “${result.spelled.toUpperCase()}” → ${requests
+              .flatMap((request) => request.heroes.map((hero) => hero.name))
+              .join(', ')}.`
+          : null,
       });
     },
-    [applyRequests, changeMode, disarm, stopSpeech, undoLast],
+    [applyRequests, changeMode, disarm, stopSpeech, undoLast, undoLastCall],
   );
 
   useEffect(() => {
@@ -579,6 +799,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
           alternatives: current.alternatives,
           candidates: [],
           candidateMode: null,
+          spelled: current.spelled,
         },
       );
     },
@@ -637,6 +858,9 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       const nextHistory = [...entries.slice(0, -1), { ...entry, hero: corrected }];
       historyRef.current = nextHistory;
       setHistory(nextHistory);
+      lastBatchRef.current = lastBatchRef.current.map((placement) =>
+        matchesPlacement(placement, entry) ? { ...placement, hero: corrected } : placement,
+      );
 
       let learned = false;
       if (lastBatchSizeRef.current === 1 && lastHeardRef.current) {
@@ -739,6 +963,9 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       stopEverything();
       historyRef.current = [];
       setHistory([]);
+      lastBatchRef.current = [];
+      setLastBatchSize(0);
+      lastBatchSizeRef.current = 0;
       setFeedback(EMPTY_FEEDBACK);
       setPanelOpen(false);
       return;
@@ -857,6 +1084,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       language,
       vocabularyBoost,
       canCorrect: history.length > 0,
+      lastBatchSize,
       setMode: changeMode,
       setLanguage,
       toggleVocabularyBoost,
@@ -865,6 +1093,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       startPushToTalk,
       stopPushToTalk,
       undoLast,
+      undoLastCall,
       correctLast,
       applyCandidate,
       applyTextCommand,
@@ -887,6 +1116,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       history,
       language,
       vocabularyBoost,
+      lastBatchSize,
       changeMode,
       setLanguage,
       toggleVocabularyBoost,
@@ -895,6 +1125,7 @@ export function VoiceProvider({ children }: { children: ReactNode }) {
       startPushToTalk,
       stopPushToTalk,
       undoLast,
+      undoLastCall,
       correctLast,
       applyCandidate,
       applyTextCommand,
